@@ -2,3 +2,7 @@
 	path = lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
 	branch = v1.5.3
+[submodule "lib/joe-v2"]
+	path = lib/joe-v2
+	url = https://github.com/traderjoe-xyz/joe-v2
+	branch = v2.1.0
