@@ -844,7 +844,11 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
 
     /**
      * @dev Get the order key components.
-     * @param key The order key.
+     * @param key The order key, packed as follow:
+     * - [255 - 96]: liquidity book pair address.
+     * - [95 - 88]: order type (bid or ask)
+     * - [87 - 24]: empty bits.
+     * - [23 - 0]: bin id.
      * @return pair The liquidity book pair.
      * @return orderType The order type (bid or ask).
      * @return binId The bin id of the order, which is the price of the order.
