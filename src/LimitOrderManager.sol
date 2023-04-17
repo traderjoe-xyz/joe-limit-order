@@ -93,8 +93,8 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
     }
 
     /**
-     * @notice Returns the version of the Limit Order Manager.
-     * @return The version of the Limit Order Manager.
+     * @notice Returns the address of the Liquidity Book factory.
+     * @return The address of the Liquidity Book factory.
      */
     function getFactory() external view override returns (ILBFactory) {
         return _factory;
