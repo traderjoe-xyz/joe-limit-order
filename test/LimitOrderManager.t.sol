@@ -758,6 +758,51 @@ contract TestLimitOrderManager is TestHelper {
         assertEq(tokenY.balanceOf(alice), 2 * amountYAfter, "test_ClaimOnPlaceOrderForBidOrder::6");
     }
 
+    function test_ClaimOnPlaceOrderForAskOrder() public {
+        uint24 activeId = activeId();
+
+        uint24 askId = activeId + 1;
+
+        vm.startPrank(alice);
+        deal(address(tokenX), alice, 2e18);
+        tokenX.approve(address(limitOrderManager), 2e18);
+
+        limitOrderManager.placeOrder(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId, 1e18);
+        vm.stopPrank();
+
+        (uint256 amountX, uint256 amountY) =
+            limitOrderManager.getCurrentAmounts(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId, alice);
+
+        swapNbBins(false, 2);
+
+        (uint256 amountXAfter, uint256 amountYAfter) =
+            limitOrderManager.getCurrentAmounts(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId, alice);
+
+        limitOrderManager.executeOrders(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId);
+
+        swapNbBins(true, 2);
+
+        vm.prank(alice);
+        limitOrderManager.placeOrder(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId, 1e18);
+
+        (uint256 amountXAfter2, uint256 amountYAfter2) =
+            limitOrderManager.getCurrentAmounts(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId, alice);
+
+        assertEq(amountXAfter2, amountX, "test_ClaimOnPlaceOrderForAskOrder::1");
+        assertEq(amountYAfter2, amountY, "test_ClaimOnPlaceOrderForAskOrder::2");
+
+        assertEq(tokenX.balanceOf(alice), amountXAfter, "test_ClaimOnPlaceOrderForAskOrder::3");
+        assertEq(tokenY.balanceOf(alice), amountYAfter, "test_ClaimOnPlaceOrderForAskOrder::4");
+
+        swapNbBins(false, 2);
+
+        vm.prank(alice);
+        limitOrderManager.claimOrder(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId);
+
+        assertEq(tokenX.balanceOf(alice), 2 * amountXAfter, "test_ClaimOnPlaceOrderForAskOrder::5");
+        assertEq(tokenY.balanceOf(alice), 2 * amountYAfter, "test_ClaimOnPlaceOrderForAskOrder::6");
+    }
+
     function test_BatchOrdersForBidOrders() external {
         uint24 activeId = activeId();
 
