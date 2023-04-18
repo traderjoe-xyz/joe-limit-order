@@ -758,6 +758,51 @@ contract TestLimitOrderManager is TestHelper {
         assertEq(tokenY.balanceOf(alice), 2 * amountYAfter, "test_ClaimOnPlaceOrderForBidOrder::6");
     }
 
+    function test_ClaimOnPlaceOrderForAskOrder() public {
+        uint24 activeId = activeId();
+
+        uint24 askId = activeId + 1;
+
+        vm.startPrank(alice);
+        deal(address(tokenX), alice, 2e18);
+        tokenX.approve(address(limitOrderManager), 2e18);
+
+        limitOrderManager.placeOrder(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId, 1e18);
+        vm.stopPrank();
+
+        (uint256 amountX, uint256 amountY) =
+            limitOrderManager.getCurrentAmounts(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId, alice);
+
+        swapNbBins(false, 2);
+
+        (uint256 amountXAfter, uint256 amountYAfter) =
+            limitOrderManager.getCurrentAmounts(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId, alice);
+
+        limitOrderManager.executeOrders(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId);
+
+        swapNbBins(true, 2);
+
+        vm.prank(alice);
+        limitOrderManager.placeOrder(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId, 1e18);
+
+        (uint256 amountXAfter2, uint256 amountYAfter2) =
+            limitOrderManager.getCurrentAmounts(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId, alice);
+
+        assertEq(amountXAfter2, amountX, "test_ClaimOnPlaceOrderForAskOrder::1");
+        assertEq(amountYAfter2, amountY, "test_ClaimOnPlaceOrderForAskOrder::2");
+
+        assertEq(tokenX.balanceOf(alice), amountXAfter, "test_ClaimOnPlaceOrderForAskOrder::3");
+        assertEq(tokenY.balanceOf(alice), amountYAfter, "test_ClaimOnPlaceOrderForAskOrder::4");
+
+        swapNbBins(false, 2);
+
+        vm.prank(alice);
+        limitOrderManager.claimOrder(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId);
+
+        assertEq(tokenX.balanceOf(alice), 2 * amountXAfter, "test_ClaimOnPlaceOrderForAskOrder::5");
+        assertEq(tokenY.balanceOf(alice), 2 * amountYAfter, "test_ClaimOnPlaceOrderForAskOrder::6");
+    }
+
     function test_BatchOrdersForBidOrders() external {
         uint24 activeId = activeId();
 
@@ -1092,5 +1137,241 @@ contract TestLimitOrderManager is TestHelper {
 
         vm.expectRevert(ILimitOrderManager.LimitOrderManager__InvalidBatchLength.selector);
         limitOrderManager.batchClaimOrders(orderParams);
+    }
+
+    function test_BatchOrdersSamePairForBidOrders() public {
+        uint24 activeId = activeId();
+
+        uint24 bidId0 = activeId - 1;
+        uint24 bidId1 = activeId - 2;
+        uint24 bidId2 = activeId - 3;
+        uint24 bidId3 = activeId - 4;
+
+        ILimitOrderManager.PlaceOrderParamsSamePair[] memory params =
+            new ILimitOrderManager.PlaceOrderParamsSamePair[](4);
+
+        params[0] = ILimitOrderManager.PlaceOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId0,
+            amount: 1e18
+        });
+
+        params[1] = ILimitOrderManager.PlaceOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId1,
+            amount: 1e18
+        });
+
+        params[2] = ILimitOrderManager.PlaceOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId2,
+            amount: 1e18
+        });
+
+        params[3] = ILimitOrderManager.PlaceOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId3,
+            amount: 1e18
+        });
+
+        vm.startPrank(alice);
+        deal(address(tokenY), alice, 4e18);
+        tokenY.approve(address(limitOrderManager), 4e18);
+
+        limitOrderManager.batchPlaceOrdersSamePair(tokenX, tokenY, binStep, params);
+        vm.stopPrank();
+
+        swapNbBins(true, 3);
+
+        assertTrue(
+            limitOrderManager.isOrderExecutable(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, bidId0),
+            "test_BatchOrdersForBidOrders::1"
+        );
+        assertTrue(
+            limitOrderManager.isOrderExecutable(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, bidId1),
+            "test_BatchOrdersForBidOrders::2"
+        );
+        assertFalse(
+            limitOrderManager.isOrderExecutable(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, bidId2),
+            "test_BatchOrdersForBidOrders::3"
+        );
+        assertFalse(
+            limitOrderManager.isOrderExecutable(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, bidId3),
+            "test_BatchOrdersForBidOrders::4"
+        );
+
+        ILimitOrderManager.OrderParamsSamePair[] memory orderParams = new ILimitOrderManager.OrderParamsSamePair[](2);
+
+        orderParams[0] =
+            ILimitOrderManager.OrderParamsSamePair({orderType: ILimitOrderManager.OrderType.BID, binId: bidId0});
+
+        orderParams[1] =
+            ILimitOrderManager.OrderParamsSamePair({orderType: ILimitOrderManager.OrderType.BID, binId: bidId1});
+
+        vm.prank(alice);
+        limitOrderManager.batchExecuteOrdersSamePair(tokenX, tokenY, binStep, orderParams);
+
+        // Reset alice's balance
+        deal(address(tokenX), alice, 0);
+        deal(address(tokenY), alice, 0);
+
+        (uint256 amountX2, uint256 amountY2) = limitOrderManager.getCurrentAmounts(
+            tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, bidId2, alice
+        );
+
+        assertGt(amountX2, 0, "test_BatchOrdersForBidOrders::5");
+        assertGt(amountY2, 0, "test_BatchOrdersForBidOrders::6");
+
+        (uint256 amountX3, uint256 amountY3) = limitOrderManager.getCurrentAmounts(
+            tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, bidId3, alice
+        );
+
+        assertEq(amountX3, 0, "test_BatchOrdersForBidOrders::7");
+        assertGt(amountY3, 0, "test_BatchOrdersForBidOrders::8");
+
+        orderParams[0] =
+            ILimitOrderManager.OrderParamsSamePair({orderType: ILimitOrderManager.OrderType.BID, binId: bidId2});
+
+        orderParams[1] =
+            ILimitOrderManager.OrderParamsSamePair({orderType: ILimitOrderManager.OrderType.BID, binId: bidId3});
+
+        vm.prank(alice);
+        limitOrderManager.batchCancelOrdersSamePair(tokenX, tokenY, binStep, orderParams);
+
+        assertEq(tokenX.balanceOf(alice), amountX2 + amountX3, "test_BatchOrdersForBidOrders::9");
+        assertEq(tokenY.balanceOf(alice), amountY2 + amountY3, "test_BatchOrdersForBidOrders::10");
+
+        orderParams[0] =
+            ILimitOrderManager.OrderParamsSamePair({orderType: ILimitOrderManager.OrderType.BID, binId: bidId0});
+
+        orderParams[1] =
+            ILimitOrderManager.OrderParamsSamePair({orderType: ILimitOrderManager.OrderType.BID, binId: bidId1});
+
+        vm.prank(alice);
+        limitOrderManager.batchClaimOrdersSamePair(tokenX, tokenY, binStep, orderParams);
+
+        // The successful positions are almost of `2 * amountX2` as order2 was half filled
+        assertApproxEqRel(
+            tokenX.balanceOf(alice), 4 * amountX2 + amountX2 + amountX3, 1e16, "test_BatchOrdersForBidOrders::11"
+        );
+        assertEq(tokenY.balanceOf(alice), amountY2 + amountY3, "test_BatchOrdersForBidOrders::12");
+    }
+
+    function test_BatchOrdersSamePairForAskOrders() public {
+        uint24 activeId = activeId();
+
+        uint24 askId0 = activeId + 1;
+        uint24 askId1 = activeId + 2;
+        uint24 askId2 = activeId + 3;
+        uint24 askId3 = activeId + 4;
+
+        ILimitOrderManager.PlaceOrderParamsSamePair[] memory params =
+            new ILimitOrderManager.PlaceOrderParamsSamePair[](4);
+
+        params[0] = ILimitOrderManager.PlaceOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId0,
+            amount: 1e18
+        });
+
+        params[1] = ILimitOrderManager.PlaceOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId1,
+            amount: 1e18
+        });
+
+        params[2] = ILimitOrderManager.PlaceOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId2,
+            amount: 1e18
+        });
+
+        params[3] = ILimitOrderManager.PlaceOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId3,
+            amount: 1e18
+        });
+
+        vm.startPrank(alice);
+        deal(address(tokenX), alice, 4e18);
+        tokenX.approve(address(limitOrderManager), 4e18);
+
+        limitOrderManager.batchPlaceOrdersSamePair(tokenX, tokenY, binStep, params);
+        vm.stopPrank();
+
+        swapNbBins(false, 3);
+
+        assertTrue(
+            limitOrderManager.isOrderExecutable(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId0),
+            "test_BatchOrdersForAskOrders::1"
+        );
+        assertTrue(
+            limitOrderManager.isOrderExecutable(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId1),
+            "test_BatchOrdersForAskOrders::2"
+        );
+        assertFalse(
+            limitOrderManager.isOrderExecutable(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId2),
+            "test_BatchOrdersForAskOrders::3"
+        );
+        assertFalse(
+            limitOrderManager.isOrderExecutable(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId3),
+            "test_BatchOrdersForAskOrders::4"
+        );
+
+        ILimitOrderManager.OrderParamsSamePair[] memory orderParams = new ILimitOrderManager.OrderParamsSamePair[](2);
+
+        orderParams[0] =
+            ILimitOrderManager.OrderParamsSamePair({orderType: ILimitOrderManager.OrderType.ASK, binId: askId0});
+
+        orderParams[1] =
+            ILimitOrderManager.OrderParamsSamePair({orderType: ILimitOrderManager.OrderType.ASK, binId: askId1});
+
+        vm.prank(alice);
+        limitOrderManager.batchExecuteOrdersSamePair(tokenX, tokenY, binStep, orderParams);
+
+        // Reset alice's balance
+        deal(address(tokenX), alice, 0);
+        deal(address(tokenY), alice, 0);
+
+        (uint256 amountX2, uint256 amountY2) = limitOrderManager.getCurrentAmounts(
+            tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId2, alice
+        );
+
+        assertGt(amountX2, 0, "test_BatchOrdersForAskOrders::5");
+        assertGt(amountY2, 0, "test_BatchOrdersForAskOrders::6");
+
+        (uint256 amountX3, uint256 amountY3) = limitOrderManager.getCurrentAmounts(
+            tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId3, alice
+        );
+
+        assertGt(amountX3, 0, "test_BatchOrdersForAskOrders::7");
+        assertEq(amountY3, 0, "test_BatchOrdersForAskOrders::8");
+
+        orderParams[0] =
+            ILimitOrderManager.OrderParamsSamePair({orderType: ILimitOrderManager.OrderType.ASK, binId: askId2});
+
+        orderParams[1] =
+            ILimitOrderManager.OrderParamsSamePair({orderType: ILimitOrderManager.OrderType.ASK, binId: askId3});
+
+        vm.prank(alice);
+        limitOrderManager.batchCancelOrdersSamePair(tokenX, tokenY, binStep, orderParams);
+
+        assertEq(tokenX.balanceOf(alice), amountX2 + amountX3, "test_BatchOrdersForAskOrders::9");
+        assertEq(tokenY.balanceOf(alice), amountY2 + amountY3, "test_BatchOrdersForAskOrders::10");
+
+        orderParams[0] =
+            ILimitOrderManager.OrderParamsSamePair({orderType: ILimitOrderManager.OrderType.ASK, binId: askId0});
+
+        orderParams[1] =
+            ILimitOrderManager.OrderParamsSamePair({orderType: ILimitOrderManager.OrderType.ASK, binId: askId1});
+
+        vm.prank(alice);
+        limitOrderManager.batchClaimOrdersSamePair(tokenX, tokenY, binStep, orderParams);
+
+        assertEq(tokenX.balanceOf(alice), amountX2 + amountX3, "test_BatchOrdersForAskOrders::11");
+        // The successful positions are almost of `2 * amountX2` as order2 was half filled
+        assertApproxEqRel(
+            tokenY.balanceOf(alice), 4 * amountY2 + amountY2 + amountY3, 1e16, "test_BatchOrdersForAskOrders::12"
+        );
     }
 }

@@ -93,8 +93,8 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
     }
 
     /**
-     * @notice Returns the version of the Limit Order Manager.
-     * @return The version of the Limit Order Manager.
+     * @notice Returns the address of the Liquidity Book factory.
+     * @return The address of the Liquidity Book factory.
      */
     function getFactory() external view override returns (ILBFactory) {
         return _factory;
@@ -432,6 +432,136 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
             ILBPair lbPair = _getLBPair(order.tokenX, order.tokenY, order.binStep);
 
             orderPositionIds[i] = _executeOrders(lbPair, order.tokenX, order.tokenY, order.orderType, order.binId);
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /**
+     * @notice Place multiple orders for the same pair.
+     * @dev This function saves a bit of gas, as it avoids calling multiple time the _getLBPair function.
+     * @param tokenX The token X of the liquidity book pair.
+     * @param tokenY The token Y of the liquidity book pair.
+     * @param binStep The bin step of the liquidity book pair.
+     * @param orders The orders to place.
+     * @return orderPositionIds The position ids of the orders.
+     */
+    function batchPlaceOrdersSamePair(
+        IERC20 tokenX,
+        IERC20 tokenY,
+        uint16 binStep,
+        PlaceOrderParamsSamePair[] calldata orders
+    ) external override nonReentrant returns (uint256[] memory orderPositionIds) {
+        if (orders.length == 0) revert LimitOrderManager__InvalidBatchLength();
+
+        orderPositionIds = new uint256[](orders.length);
+
+        ILBPair lbPair = _getLBPair(tokenX, tokenY, binStep);
+
+        for (uint256 i; i < orders.length;) {
+            PlaceOrderParamsSamePair calldata order = orders[i];
+
+            (IERC20 tokenIn, IERC20 tokenOut) = order.orderType == OrderType.BID ? (tokenY, tokenX) : (tokenX, tokenY);
+
+            orderPositionIds[i] = _placeOrder(lbPair, tokenIn, tokenOut, order.amount, order.orderType, order.binId);
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /**
+     * @notice Cancel multiple orders for the same pair.
+     * @dev This function saves a bit of gas, as it avoids calling multiple time the _getLBPair function.
+     * @param tokenX The token X of the liquidity book pair.
+     * @param tokenY The token Y of the liquidity book pair.
+     * @param binStep The bin step of the liquidity book pair.
+     * @param orders The orders to cancel.
+     * @return orderPositionIds The position ids of the orders.
+     */
+    function batchCancelOrdersSamePair(
+        IERC20 tokenX,
+        IERC20 tokenY,
+        uint16 binStep,
+        OrderParamsSamePair[] calldata orders
+    ) external override nonReentrant returns (uint256[] memory orderPositionIds) {
+        if (orders.length == 0) revert LimitOrderManager__InvalidBatchLength();
+
+        orderPositionIds = new uint256[](orders.length);
+
+        ILBPair lbPair = _getLBPair(tokenX, tokenY, binStep);
+
+        for (uint256 i; i < orders.length;) {
+            OrderParamsSamePair calldata order = orders[i];
+
+            orderPositionIds[i] = _cancelOrder(lbPair, tokenX, tokenY, order.orderType, order.binId);
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /**
+     * @notice Claim multiple orders for the same pair.
+     * @dev This function saves a bit of gas, as it avoids calling multiple time the _getLBPair function.
+     * @param tokenX The token X of the liquidity book pair.
+     * @param tokenY The token Y of the liquidity book pair.
+     * @param binStep The bin step of the liquidity book pair.
+     * @param orders The orders to claim.
+     * @return orderPositionIds The position ids of the orders.
+     */
+    function batchClaimOrdersSamePair(
+        IERC20 tokenX,
+        IERC20 tokenY,
+        uint16 binStep,
+        OrderParamsSamePair[] calldata orders
+    ) external override nonReentrant returns (uint256[] memory orderPositionIds) {
+        if (orders.length == 0) revert LimitOrderManager__InvalidBatchLength();
+
+        orderPositionIds = new uint256[](orders.length);
+
+        ILBPair lbPair = _getLBPair(tokenX, tokenY, binStep);
+
+        for (uint256 i; i < orders.length;) {
+            OrderParamsSamePair calldata order = orders[i];
+
+            orderPositionIds[i] = _claimOrder(lbPair, tokenX, tokenY, order.orderType, order.binId);
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /**
+     * @notice Execute multiple orders for the same pair.
+     * @dev This function saves a bit of gas, as it avoids calling multiple time the _getLBPair function.
+     * @param tokenX The token X of the liquidity book pair.
+     * @param tokenY The token Y of the liquidity book pair.
+     * @param binStep The bin step of the liquidity book pair.
+     * @param orders The orders to execute.
+     * @return orderPositionIds The position ids of the orders.
+     */
+    function batchExecuteOrdersSamePair(
+        IERC20 tokenX,
+        IERC20 tokenY,
+        uint16 binStep,
+        OrderParamsSamePair[] calldata orders
+    ) external override nonReentrant returns (uint256[] memory orderPositionIds) {
+        if (orders.length == 0) revert LimitOrderManager__InvalidBatchLength();
+
+        orderPositionIds = new uint256[](orders.length);
+
+        ILBPair lbPair = _getLBPair(tokenX, tokenY, binStep);
+
+        for (uint256 i; i < orders.length;) {
+            OrderParamsSamePair calldata order = orders[i];
+
+            orderPositionIds[i] = _executeOrders(lbPair, tokenX, tokenY, order.orderType, order.binId);
 
             unchecked {
                 ++i;

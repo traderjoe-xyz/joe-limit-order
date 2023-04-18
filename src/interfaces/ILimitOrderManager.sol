@@ -93,6 +93,25 @@ interface ILimitOrderManager {
         uint24 binId;
     }
 
+    /**
+     * @dev Place order params structure for the same LB pair, used to place multiple orders in a single transaction
+     * for the same LB pair
+     */
+    struct PlaceOrderParamsSamePair {
+        OrderType orderType;
+        uint24 binId;
+        uint256 amount;
+    }
+
+    /**
+     * @dev Order params structure for the same LB pair, used to cancel, claim and execute multiple orders in a single
+     * transaction for the same LB pair
+     */
+    struct OrderParamsSamePair {
+        OrderType orderType;
+        uint24 binId;
+    }
+
     event OrderPlaced(
         address indexed user,
         ILBPair indexed lbPair,
@@ -197,4 +216,32 @@ interface ILimitOrderManager {
     function batchClaimOrders(OrderParams[] calldata orders) external returns (uint256[] memory positionIds);
 
     function batchExecuteOrders(OrderParams[] calldata orders) external returns (uint256[] memory positionIds);
+
+    function batchPlaceOrdersSamePair(
+        IERC20 tokenX,
+        IERC20 tokenY,
+        uint16 binStep,
+        PlaceOrderParamsSamePair[] calldata orders
+    ) external returns (uint256[] memory positionIds);
+
+    function batchCancelOrdersSamePair(
+        IERC20 tokenX,
+        IERC20 tokenY,
+        uint16 binStep,
+        OrderParamsSamePair[] calldata orders
+    ) external returns (uint256[] memory positionIds);
+
+    function batchClaimOrdersSamePair(
+        IERC20 tokenX,
+        IERC20 tokenY,
+        uint16 binStep,
+        OrderParamsSamePair[] calldata orders
+    ) external returns (uint256[] memory positionIds);
+
+    function batchExecuteOrdersSamePair(
+        IERC20 tokenX,
+        IERC20 tokenY,
+        uint16 binStep,
+        OrderParamsSamePair[] calldata orders
+    ) external returns (uint256[] memory positionIds);
 }
