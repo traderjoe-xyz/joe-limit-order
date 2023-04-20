@@ -941,15 +941,15 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         amounts[0] = liquidity;
 
         // Get the current balance of the token X and token Y.
-        uint256 balanceX = tokenX.balanceOf(address(this));
-        uint256 balanceY = tokenY.balanceOf(address(this));
+        uint256 balanceX = tokenX.balanceOf(to);
+        uint256 balanceY = tokenY.balanceOf(to);
 
         // Burn the liquidity from the liquidity book pair, sending the tokens directly to `to` address.
         lbPair.burn(address(this), to, ids, amounts);
 
         // Get the amount of token X and token Y withdrawn.
-        amountX = (tokenX.balanceOf(address(this)) - balanceX).safe128();
-        amountY = (tokenY.balanceOf(address(this)) - balanceY).safe128();
+        amountX = (tokenX.balanceOf(to) - balanceX).safe128();
+        amountY = (tokenY.balanceOf(to) - balanceY).safe128();
     }
 
     /**
