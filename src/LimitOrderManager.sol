@@ -589,8 +589,8 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
 
     /**
      * @dev Return whether the order is valid or not.
-     * An order is valid if the order type is bid and the bin id is lower than or equal to the active id,
-     * or if the order type is ask and the bin id is greater than or equal to the active id. This is to prevent adding
+     * An order is valid if the order type is bid and the bin id is lower than the active id,
+     * or if the order type is ask and the bin id is greater than the active id. This is to prevent adding
      * orders to the active bin and to add liquidity to a bin that can't receive the token sent.
      * @param lbPair The liquidity book pair.
      * @param orderType The order type (bid or ask).
