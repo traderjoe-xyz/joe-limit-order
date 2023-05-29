@@ -37,8 +37,8 @@ import {ILimitOrderManager} from "./interfaces/ILimitOrderManager.sol";
  * - `orderType`: the order type (bid or ask)
  * - `binId`: the bin id of the order, which is the price of the order
  * - `amount`: the amount of token to be used for the order, in token Y for bid orders and token X for ask orders
- * Orders can't be placed in the active bin id. Bid orders need to be placed in a bin id greater than the active id,
- * while ask orders need to be placed in a bin id lower than the active bin id.
+ * Orders can't be placed in the active bin id. Bid orders need to be placed in a bin id lower than the active id,
+ * while ask orders need to be placed in a bin id greater than the active bin id.
  *
  * Users can cancel orders using the `cancelOrder` function by specifying the same parameters as for `placeOrder` but
  * without the `amount` parameter.
@@ -589,8 +589,8 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
 
     /**
      * @dev Return whether the order is valid or not.
-     * An order is valid if the order type is bid and the bin id is greater than or equal to the active id,
-     * or if the order type is ask and the bin id is less than or equal to the active id. This is to prevent adding
+     * An order is valid if the order type is bid and the bin id is lower than the active id,
+     * or if the order type is ask and the bin id is greater than the active id. This is to prevent adding
      * orders to the active bin and to add liquidity to a bin that can't receive the token sent.
      * @param lbPair The liquidity book pair.
      * @param orderType The order type (bid or ask).
@@ -604,9 +604,9 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
 
     /**
      * @dev Return whether the order is executable or not.
-     * An order is executable if the order type is bid and the bin id is less than or equal to the active id,
-     * or if the order type is ask and the bin id is greater than or equal to the active id. This is to only allow
-     * executing orders that are fully filled.
+     * An order is executable if the bin was crossed, if the order type is bid and the bin id is now lower than
+     * to the active id, or if the order type is ask and the bin id is now greater than the active id.
+     * This is to only allow executing orders that are fully filled.
      * @param lbPair The liquidity book pair.
      * @param orderType The order type (bid or ask).
      * @param binId The bin id of the order, which is the price of the order.
