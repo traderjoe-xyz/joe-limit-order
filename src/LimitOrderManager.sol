@@ -604,8 +604,8 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
 
     /**
      * @dev Return whether the order is executable or not.
-     * An order is executable if the bin was crossed, if the order type is bid and the bin id is now lower than or equal
-     * to the active id, or if the order type is ask and the bin id is now greater than or equal to the active id.
+     * An order is executable if the bin was crossed, if the order type is bid and the bin id is now lower than
+     * to the active id, or if the order type is ask and the bin id is now greater than the active id.
      * This is to only allow executing orders that are fully filled.
      * @param lbPair The liquidity book pair.
      * @param orderType The order type (bid or ask).
