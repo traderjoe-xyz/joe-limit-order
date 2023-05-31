@@ -321,7 +321,7 @@ contract TestLimitOrderManager is TestHelper {
         vm.expectRevert(ILimitOrderManager.LimitOrderManager__OrderNotPlaced.selector);
         limitOrderManager.cancelOrder(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, activeId);
 
-        deal(address(tokenY), address(this), 2e18);
+        deal(address(tokenY), address(this), 3e18);
         limitOrderManager.placeOrder(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, activeId - 1, 1e18);
 
         limitOrderManager.cancelOrder(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, activeId - 1);
@@ -330,7 +330,17 @@ contract TestLimitOrderManager is TestHelper {
         vm.expectRevert(ILimitOrderManager.LimitOrderManager__OrderNotPlaced.selector);
         limitOrderManager.cancelOrder(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, activeId - 1);
 
+        limitOrderManager.placeOrder(wnative, usdc, 20, ILimitOrderManager.OrderType.ASK, activeId + 1, 1e18);
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__ZeroAddress.selector);
+        limitOrderManager.cancelOrder(IERC20(address(0)), usdc, 20, ILimitOrderManager.OrderType.ASK, activeId + 1);
+
         limitOrderManager.placeOrder(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, activeId - 1, 1e18);
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__ZeroAddress.selector);
+        limitOrderManager.cancelOrder(
+            tokenX, IERC20(address(0)), binStep, ILimitOrderManager.OrderType.BID, activeId - 1
+        );
 
         swapNbBins(true, 2);
 
@@ -481,6 +491,9 @@ contract TestLimitOrderManager is TestHelper {
         limitOrderManager.placeOrder(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.ASK, askId, 1e18);
 
         swapNbBins(true, 2);
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__ZeroAddress.selector);
+        limitOrderManager.executeOrders(tokenX, IERC20(address(0)), binStep, ILimitOrderManager.OrderType.BID, bidId);
 
         limitOrderManager.executeOrders(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, bidId);
 
@@ -1374,4 +1387,546 @@ contract TestLimitOrderManager is TestHelper {
             tokenY.balanceOf(alice), 4 * amountY2 + amountY2 + amountY3, 1e16, "test_BatchOrdersForAskOrders::12"
         );
     }
+
+    function test_PlaceOrderNative() public {
+        uint24 activeId = activeId();
+
+        uint24 bidId = activeId - 1;
+
+        assertEq(address(tokenY), address(wnative), "test_PlaceOrderNative::1");
+
+        limitOrderManager.placeOrder{value: 1e18}(
+            tokenX, IERC20(address(0)), binStep, ILimitOrderManager.OrderType.BID, bidId, 1e18
+        );
+
+        ILBPair wavaxusdc = lbFactory.getLBPairInformation(wnative, usdc, 20).LBPair;
+
+        limitOrderManager.placeOrder{value: 1e18}(
+            IERC20(address(0)), usdc, 20, ILimitOrderManager.OrderType.ASK, wavaxusdc.getActiveId() + 1, 1e18
+        );
+
+        uint256 balanceBefore = address(this).balance;
+
+        limitOrderManager.placeOrder{value: 1e18 + 1}(
+            tokenX, IERC20(address(0)), binStep, ILimitOrderManager.OrderType.BID, bidId, 1e18
+        );
+
+        assertEq(address(this).balance, balanceBefore - 1e18, "test_PlaceOrderNative::2");
+
+        balanceBefore = address(this).balance;
+
+        limitOrderManager.placeOrder{value: 1e18 + 1}(
+            IERC20(address(0)), usdc, 20, ILimitOrderManager.OrderType.ASK, wavaxusdc.getActiveId() + 1, 1e18
+        );
+
+        assertEq(address(this).balance, balanceBefore - 1e18, "test_PlaceOrderNative::3");
+    }
+
+    function test_PlaceOrderNative_revert() public {
+        uint24 activeId = activeId();
+
+        uint24 bidId = activeId - 1;
+        uint24 askId = activeId + 1;
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InvalidNativeAmount.selector);
+        limitOrderManager.placeOrder{value: 1e18 - 1}(
+            tokenX, IERC20(address(0)), binStep, ILimitOrderManager.OrderType.BID, bidId, 1e18
+        );
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InvalidNativeAmount.selector);
+        limitOrderManager.placeOrder{value: 1e18}(
+            tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, bidId, 1e18
+        );
+
+        uint24 avaxUsdcBidId = lbFactory.getLBPairInformation(wnative, usdc, 20).LBPair.getActiveId() - 1;
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InvalidNativeAmount.selector);
+        limitOrderManager.placeOrder{value: 1e18}(
+            IERC20(address(0)), usdc, 20, ILimitOrderManager.OrderType.BID, avaxUsdcBidId, 1e18
+        );
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InvalidNativeAmount.selector);
+        limitOrderManager.placeOrder{value: 1e18}(
+            tokenX, IERC20(address(0)), binStep, ILimitOrderManager.OrderType.ASK, askId, 1e18
+        );
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InvalidNativeAmount.selector);
+        limitOrderManager.placeOrder{value: 1e18}(
+            IERC20(address(0)), wnative, binStep, ILimitOrderManager.OrderType.BID, bidId, 1e18
+        );
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InvalidNativeAmount.selector);
+        limitOrderManager.placeOrder{value: 1e18}(
+            wnative, IERC20(address(0)), binStep, ILimitOrderManager.OrderType.ASK, askId, 1e18
+        );
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InvalidPair.selector);
+        limitOrderManager.placeOrder{value: 1e18}(
+            IERC20(address(0)), wnative, binStep, ILimitOrderManager.OrderType.ASK, askId, 1e18
+        );
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InvalidPair.selector);
+        limitOrderManager.placeOrder{value: 1e18}(
+            wnative, IERC20(address(0)), binStep, ILimitOrderManager.OrderType.BID, bidId, 1e18
+        );
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InvalidPair.selector);
+        limitOrderManager.placeOrder{value: 1e18}(
+            IERC20(address(0)), IERC20(address(0)), binStep, ILimitOrderManager.OrderType.BID, bidId, 1e18
+        );
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InvalidPair.selector);
+        limitOrderManager.placeOrder{value: 1e18}(
+            IERC20(address(0)), IERC20(address(0)), binStep, ILimitOrderManager.OrderType.ASK, askId, 1e18
+        );
+    }
+
+    function test_BatchPlaceOrdersNative() public {
+        uint24 activeId = activeId();
+
+        uint24 bidId0 = activeId - 1;
+        uint24 bidId1 = activeId - 2;
+
+        assertEq(address(tokenY), address(wnative), "test_BatchPlaceOrdersNative::1");
+
+        ILBPair wavaxusdc = lbFactory.getLBPairInformation(wnative, usdc, 20).LBPair;
+
+        uint24 askId0 = wavaxusdc.getActiveId() + 1;
+        uint24 askId1 = wavaxusdc.getActiveId() + 2;
+
+        ILimitOrderManager.PlaceOrderParams[] memory orderParams = new ILimitOrderManager.PlaceOrderParams[](2);
+
+        orderParams[0] = ILimitOrderManager.PlaceOrderParams({
+            tokenX: tokenX,
+            tokenY: IERC20(address(0)),
+            binStep: binStep,
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId0,
+            amount: 1e18
+        });
+
+        orderParams[1] = ILimitOrderManager.PlaceOrderParams({
+            tokenX: tokenX,
+            tokenY: IERC20(address(0)),
+            binStep: binStep,
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId1,
+            amount: 1e18
+        });
+
+        limitOrderManager.batchPlaceOrders{value: 2e18}(orderParams);
+
+        uint256 balanceBefore = address(this).balance;
+
+        limitOrderManager.batchPlaceOrders{value: 2e18 + 1}(orderParams);
+
+        assertEq(address(this).balance, balanceBefore - 2e18, "test_BatchPlaceOrdersNative::2");
+
+        orderParams[0] = ILimitOrderManager.PlaceOrderParams({
+            tokenX: IERC20(address(0)),
+            tokenY: usdc,
+            binStep: 20,
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId0,
+            amount: 1e18
+        });
+
+        orderParams[1] = ILimitOrderManager.PlaceOrderParams({
+            tokenX: IERC20(address(0)),
+            tokenY: usdc,
+            binStep: 20,
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId1,
+            amount: 1e18
+        });
+
+        limitOrderManager.batchPlaceOrders{value: 2e18}(orderParams);
+
+        balanceBefore = address(this).balance;
+
+        limitOrderManager.batchPlaceOrders{value: 2e18 + 1}(orderParams);
+
+        assertEq(address(this).balance, balanceBefore - 2e18, "test_BatchPlaceOrdersNative::3");
+
+        orderParams[0] = ILimitOrderManager.PlaceOrderParams({
+            tokenX: IERC20(address(0)),
+            tokenY: usdc,
+            binStep: 20,
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId0,
+            amount: 1e18
+        });
+
+        orderParams[1] = ILimitOrderManager.PlaceOrderParams({
+            tokenX: tokenX,
+            tokenY: IERC20(address(0)),
+            binStep: binStep,
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId1,
+            amount: 1e18
+        });
+
+        limitOrderManager.batchPlaceOrders{value: 2e18}(orderParams);
+
+        balanceBefore = address(this).balance;
+
+        limitOrderManager.batchPlaceOrders{value: 2e18 + 1}(orderParams);
+
+        assertEq(address(this).balance, balanceBefore - 2e18, "test_BatchPlaceOrdersNative::4");
+
+        orderParams[0] = ILimitOrderManager.PlaceOrderParams({
+            tokenX: tokenX,
+            tokenY: IERC20(address(0)),
+            binStep: binStep,
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId1,
+            amount: 1e18
+        });
+
+        orderParams[1] = ILimitOrderManager.PlaceOrderParams({
+            tokenX: IERC20(address(0)),
+            tokenY: usdc,
+            binStep: 20,
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId0,
+            amount: 1e18
+        });
+
+        limitOrderManager.batchPlaceOrders{value: 2e18}(orderParams);
+
+        balanceBefore = address(this).balance;
+
+        limitOrderManager.batchPlaceOrders{value: 2e18 + 1}(orderParams);
+
+        assertEq(address(this).balance, balanceBefore - 2e18, "test_BatchPlaceOrdersNative::4");
+
+        orderParams[0] = ILimitOrderManager.PlaceOrderParams({
+            tokenX: tokenX,
+            tokenY: tokenY,
+            binStep: binStep,
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId1,
+            amount: 1e18
+        });
+
+        orderParams[1] = ILimitOrderManager.PlaceOrderParams({
+            tokenX: IERC20(address(0)),
+            tokenY: usdc,
+            binStep: 20,
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId0,
+            amount: 1e18
+        });
+
+        deal(address(wnative), address(this), 1e18);
+        limitOrderManager.batchPlaceOrders{value: 1e18}(orderParams);
+    }
+
+    function test_BatchPlaceOrders_revert() public {
+        uint24 activeId = activeId();
+
+        uint24 bidId0 = activeId - 1;
+
+        assertEq(address(tokenY), address(wnative), "test_BatchPlaceOrdersNative::1");
+
+        ILBPair wavaxusdc = lbFactory.getLBPairInformation(wnative, usdc, 20).LBPair;
+
+        uint24 askId0 = wavaxusdc.getActiveId() + 1;
+
+        ILimitOrderManager.PlaceOrderParams[] memory orderParams = new ILimitOrderManager.PlaceOrderParams[](2);
+
+        orderParams[0] = ILimitOrderManager.PlaceOrderParams({
+            tokenX: tokenX,
+            tokenY: IERC20(address(0)),
+            binStep: binStep,
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId0,
+            amount: 1e18
+        });
+
+        orderParams[1] = ILimitOrderManager.PlaceOrderParams({
+            tokenX: IERC20(address(0)),
+            tokenY: usdc,
+            binStep: 20,
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId0,
+            amount: 1e18
+        });
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InvalidNativeAmount.selector);
+        limitOrderManager.batchPlaceOrders{value: 2e18 - 1}(orderParams);
+
+        orderParams[0] = ILimitOrderManager.PlaceOrderParams({
+            tokenX: tokenX,
+            tokenY: tokenY,
+            binStep: binStep,
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId0,
+            amount: 1e18
+        });
+
+        orderParams[1] = ILimitOrderManager.PlaceOrderParams({
+            tokenX: IERC20(address(0)),
+            tokenY: usdc,
+            binStep: 20,
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId0,
+            amount: 1e18
+        });
+
+        deal(address(wnative), address(this), 1e18);
+    }
+
+    function test_BatchPlaceOrdersSamePairNative() public {
+        uint24 activeId = activeId();
+
+        uint24 bidId0 = activeId - 1;
+        uint24 bidId1 = activeId - 2;
+
+        assertEq(address(tokenY), address(wnative), "test_BatchPlaceOrdersSamePairNative::1");
+
+        ILBPair wavaxusdc = lbFactory.getLBPairInformation(wnative, usdc, 20).LBPair;
+
+        uint24 askId0 = wavaxusdc.getActiveId() + 1;
+        uint24 askId1 = wavaxusdc.getActiveId() + 2;
+
+        ILimitOrderManager.PlaceOrderParamsSamePair[] memory orderParams =
+            new ILimitOrderManager.PlaceOrderParamsSamePair[](2);
+
+        orderParams[0] = ILimitOrderManager.PlaceOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId0,
+            amount: 1e18
+        });
+
+        orderParams[1] = ILimitOrderManager.PlaceOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId1,
+            amount: 1e18
+        });
+
+        limitOrderManager.batchPlaceOrdersSamePair{value: 2e18}(tokenX, IERC20(address(0)), binStep, orderParams);
+
+        uint256 balanceBefore = address(this).balance;
+
+        limitOrderManager.batchPlaceOrdersSamePair{value: 2e18 + 1}(tokenX, IERC20(address(0)), binStep, orderParams);
+
+        assertEq(address(this).balance, balanceBefore - 2e18, "test_BatchPlaceOrdersSamePairNative::2");
+
+        orderParams[0] = ILimitOrderManager.PlaceOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId0,
+            amount: 1e18
+        });
+
+        orderParams[1] = ILimitOrderManager.PlaceOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId1,
+            amount: 1e18
+        });
+
+        limitOrderManager.batchPlaceOrdersSamePair{value: 2e18}(IERC20(address(0)), usdc, 20, orderParams);
+
+        balanceBefore = address(this).balance;
+
+        limitOrderManager.batchPlaceOrdersSamePair{value: 2e18 + 1}(IERC20(address(0)), usdc, 20, orderParams);
+
+        assertEq(address(this).balance, balanceBefore - 2e18, "test_BatchPlaceOrdersSamePairNative::3");
+    }
+
+    function test_BatchPlaceOrdersSamePair_revert() public {
+        uint24 activeId = activeId();
+
+        uint24 bidId0 = activeId - 1;
+        uint24 bidId1 = activeId - 2;
+
+        assertEq(address(tokenY), address(wnative), "test_BatchPlaceOrdersSamePair_revert::1");
+
+        ILBPair wavaxusdc = lbFactory.getLBPairInformation(wnative, usdc, 20).LBPair;
+
+        uint24 askId0 = wavaxusdc.getActiveId() + 1;
+        uint24 askId1 = wavaxusdc.getActiveId() + 2;
+
+        ILimitOrderManager.PlaceOrderParamsSamePair[] memory orderParams =
+            new ILimitOrderManager.PlaceOrderParamsSamePair[](2);
+
+        orderParams[0] = ILimitOrderManager.PlaceOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId0,
+            amount: 1e18
+        });
+
+        orderParams[1] = ILimitOrderManager.PlaceOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId1,
+            amount: 1e18
+        });
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InvalidNativeAmount.selector);
+        limitOrderManager.batchPlaceOrdersSamePair{value: 2e18 - 1}(tokenX, IERC20(address(0)), binStep, orderParams);
+
+        orderParams[0] = ILimitOrderManager.PlaceOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId0,
+            amount: 1e18
+        });
+
+        orderParams[1] = ILimitOrderManager.PlaceOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId1,
+            amount: 1e18
+        });
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InvalidNativeAmount.selector);
+        limitOrderManager.batchPlaceOrdersSamePair{value: 2e18 - 1}(IERC20(address(0)), usdc, 20, orderParams);
+    }
+
+    function test_ClaimOrderNative() public {
+        ILBPair wavaxUsdc = lbFactory.getLBPairInformation(wnative, usdc, 20).LBPair;
+
+        uint24 wavaxUsdcActiveId = wavaxUsdc.getActiveId();
+        uint24 linkWavaxActiveId = activeId();
+
+        uint24 wavaxUsdcAskId = wavaxUsdcActiveId + 1;
+
+        uint24 linkWavaxBidId = linkWavaxActiveId - 1;
+
+        limitOrderManager.placeOrder{value: 1e18}(
+            tokenX, IERC20(address(0)), binStep, ILimitOrderManager.OrderType.BID, linkWavaxBidId, 1e18
+        );
+
+        swapNbBins(lbPair, true, 2);
+
+        limitOrderManager.executeOrders(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, linkWavaxBidId);
+
+        uint256 balanceBefore = address(this).balance;
+        uint256 wnativeBalanceBefore = wnative.balanceOf(address(this));
+
+        (uint256 claimableX, uint256 claimableY) = limitOrderManager.getCurrentAmounts(
+            tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, linkWavaxBidId, address(this)
+        );
+
+        limitOrderManager.claimOrder(
+            tokenX, IERC20(address(0)), binStep, ILimitOrderManager.OrderType.BID, linkWavaxBidId
+        );
+
+        assertEq(claimableX, 0, "test_ClaimOrderNative::1");
+        assertGt(address(this).balance, balanceBefore, "test_ClaimOrderNative::2");
+        assertEq(address(this).balance, balanceBefore + claimableY, "test_ClaimOrderNative::3");
+        assertEq(wnative.balanceOf(address(this)), wnativeBalanceBefore, "test_ClaimOrderNative::4");
+
+        limitOrderManager.placeOrder{value: 1e18}(
+            IERC20(address(0)), usdc, 20, ILimitOrderManager.OrderType.ASK, wavaxUsdcAskId, 1e18
+        );
+
+        swapNbBins(wavaxUsdc, false, 2);
+
+        limitOrderManager.executeOrders(wnative, usdc, 20, ILimitOrderManager.OrderType.ASK, wavaxUsdcAskId);
+
+        balanceBefore = address(this).balance;
+        wnativeBalanceBefore = wnative.balanceOf(address(this));
+
+        (claimableX, claimableY) = limitOrderManager.getCurrentAmounts(
+            IERC20(address(0)), usdc, 20, ILimitOrderManager.OrderType.ASK, wavaxUsdcAskId, address(this)
+        );
+
+        limitOrderManager.claimOrder(IERC20(address(0)), usdc, 20, ILimitOrderManager.OrderType.ASK, wavaxUsdcAskId);
+
+        assertEq(claimableY, 0, "test_ClaimOrderNative::5");
+        assertGt(address(this).balance, balanceBefore, "test_ClaimOrderNative::6");
+        assertEq(address(this).balance, balanceBefore + claimableX, "test_ClaimOrderNative::7");
+        assertEq(wnative.balanceOf(address(this)), wnativeBalanceBefore, "test_ClaimOrderNative::8");
+    }
+
+    function test_BatchClaimOrdersNative() public {
+        ILBPair wavaxUsdc = lbFactory.getLBPairInformation(wnative, usdc, 20).LBPair;
+
+        uint24 linkWavaxBidId = activeId() - 1;
+        uint24 wavaxUsdcAskId = wavaxUsdc.getActiveId() + 1;
+
+        limitOrderManager.placeOrder{value: 1e18}(
+            tokenX, IERC20(address(0)), binStep, ILimitOrderManager.OrderType.BID, linkWavaxBidId, 1e18
+        );
+        limitOrderManager.placeOrder{value: 1e18}(
+            tokenX, IERC20(address(0)), binStep, ILimitOrderManager.OrderType.BID, linkWavaxBidId - 1, 1e18
+        );
+        limitOrderManager.placeOrder{value: 1e18}(
+            IERC20(address(0)), usdc, 20, ILimitOrderManager.OrderType.ASK, wavaxUsdcAskId, 1e18
+        );
+        limitOrderManager.placeOrder{value: 1e18}(
+            IERC20(address(0)), usdc, 20, ILimitOrderManager.OrderType.ASK, wavaxUsdcAskId + 1, 1e18
+        );
+
+        swapNbBins(lbPair, true, 3);
+        swapNbBins(wavaxUsdc, false, 3);
+
+        (, uint256 lwClaimableY1) = limitOrderManager.getCurrentAmounts(
+            tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, linkWavaxBidId, address(this)
+        );
+
+        (, uint256 lwClaimableY2) = limitOrderManager.getCurrentAmounts(
+            tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, linkWavaxBidId - 1, address(this)
+        );
+
+        (uint256 wuClaimableX1,) = limitOrderManager.getCurrentAmounts(
+            IERC20(address(0)), usdc, 20, ILimitOrderManager.OrderType.ASK, wavaxUsdcAskId, address(this)
+        );
+
+        (uint256 wuClaimableX2,) = limitOrderManager.getCurrentAmounts(
+            IERC20(address(0)), usdc, 20, ILimitOrderManager.OrderType.ASK, wavaxUsdcAskId + 1, address(this)
+        );
+
+        limitOrderManager.executeOrders(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, linkWavaxBidId);
+        limitOrderManager.executeOrders(tokenX, tokenY, binStep, ILimitOrderManager.OrderType.BID, linkWavaxBidId - 1);
+        limitOrderManager.executeOrders(wnative, usdc, 20, ILimitOrderManager.OrderType.ASK, wavaxUsdcAskId);
+        limitOrderManager.executeOrders(wnative, usdc, 20, ILimitOrderManager.OrderType.ASK, wavaxUsdcAskId + 1);
+
+        uint256 balanceBefore = address(this).balance;
+        uint256 wnativeBalanceBefore = wnative.balanceOf(address(this));
+
+        ILimitOrderManager.OrderParams[] memory orderParams = new ILimitOrderManager.OrderParams[](4);
+
+        orderParams[0] = ILimitOrderManager.OrderParams({
+            tokenX: tokenX,
+            tokenY: IERC20(address(0)),
+            binStep: binStep,
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: linkWavaxBidId
+        });
+
+        orderParams[1] = ILimitOrderManager.OrderParams({
+            tokenX: tokenX,
+            tokenY: tokenY,
+            binStep: binStep,
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: linkWavaxBidId - 1
+        });
+
+        orderParams[2] = ILimitOrderManager.OrderParams({
+            tokenX: wnative,
+            tokenY: tokenY,
+            binStep: 20,
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: wavaxUsdcAskId
+        });
+
+        orderParams[3] = ILimitOrderManager.OrderParams({
+            tokenX: IERC20(address(0)),
+            tokenY: tokenY,
+            binStep: 20,
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: wavaxUsdcAskId + 1
+        });
+
+        limitOrderManager.batchClaimOrders(orderParams);
+
+        assertEq(address(this).balance, balanceBefore + lwClaimableY1 + wuClaimableX2, "test_BatchClaimOrdersNative::1");
+        assertEq(
+            wnative.balanceOf(address(this)),
+            wnativeBalanceBefore + lwClaimableY2 + wuClaimableX1,
+            "test_BatchClaimOrdersNative::2"
+        );
+    }
+
+    receive() external payable {}
 }
