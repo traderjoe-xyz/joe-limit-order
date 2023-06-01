@@ -11,6 +11,7 @@ import {LiquidityConfigurations} from "joe-v2/libraries/math/LiquidityConfigurat
 import {PackedUint128Math} from "joe-v2/libraries/math/PackedUint128Math.sol";
 import {Uint256x256Math} from "joe-v2/libraries/math/Uint256x256Math.sol";
 import {SafeCast} from "joe-v2/libraries/math/SafeCast.sol";
+import {IWNATIVE} from "joe-v2/interfaces/IWNATIVE.sol";
 
 import {ILimitOrderManager} from "./interfaces/ILimitOrderManager.sol";
 
@@ -63,6 +64,7 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
     using SafeCast for uint256;
 
     ILBFactory private immutable _factory;
+    IWNATIVE private immutable _wNative;
 
     /**
      * @dev Mapping of order key (pair, order type, bin id) to positions.
@@ -77,11 +79,13 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
     /**
      * @notice Constructor of the Limit Order Manager.
      * @param factory The address of the Liquidity Book factory.
+     * @param wNative The address of the WNative token.
      */
-    constructor(ILBFactory factory) {
-        if (address(factory) == address(0)) revert LimitOrderManager__ZeroAddress();
+    constructor(ILBFactory factory, IWNATIVE wNative) {
+        if (address(factory) == address(0) || address(wNative) == address(0)) revert LimitOrderManager__ZeroAddress();
 
         _factory = factory;
+        _wNative = wNative;
     }
 
     /**
@@ -253,15 +257,22 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
      */
     function placeOrder(IERC20 tokenX, IERC20 tokenY, uint16 binStep, OrderType orderType, uint24 binId, uint256 amount)
         external
+        payable
         override
         nonReentrant
         returns (uint256 orderPositionId)
     {
-        ILBPair lbPair = _getLBPair(tokenX, tokenY, binStep);
-
         (IERC20 tokenIn, IERC20 tokenOut) = orderType == OrderType.BID ? (tokenY, tokenX) : (tokenX, tokenY);
 
-        return _placeOrder(lbPair, tokenIn, tokenOut, amount, orderType, binId);
+        if ((address(tokenIn) != address(0) || amount > msg.value) && msg.value != 0) {
+            revert LimitOrderManager__InvalidNativeAmount();
+        }
+
+        ILBPair lbPair = _getLBPair(tokenX, tokenY, binStep);
+
+        orderPositionId = _placeOrder(lbPair, tokenIn, tokenOut, amount, orderType, binId);
+
+        if (msg.value > amount) _transferNativeToken(msg.sender, msg.value - amount);
     }
 
     /**
@@ -331,21 +342,27 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
      */
     function batchPlaceOrders(PlaceOrderParams[] calldata orders)
         external
+        payable
         override
         nonReentrant
         returns (uint256[] memory orderPositionIds)
     {
         if (orders.length == 0) revert LimitOrderManager__InvalidBatchLength();
 
+        uint256 nativeAmount;
         orderPositionIds = new uint256[](orders.length);
 
         for (uint256 i; i < orders.length;) {
             PlaceOrderParams calldata order = orders[i];
 
-            ILBPair lbPair = _getLBPair(order.tokenX, order.tokenY, order.binStep);
-
             (IERC20 tokenIn, IERC20 tokenOut) =
                 order.orderType == OrderType.BID ? (order.tokenY, order.tokenX) : (order.tokenX, order.tokenY);
+
+            if (address(tokenIn) == address(0) && (nativeAmount += order.amount) > msg.value) {
+                revert LimitOrderManager__InvalidNativeAmount();
+            }
+
+            ILBPair lbPair = _getLBPair(order.tokenX, order.tokenY, order.binStep);
 
             orderPositionIds[i] = _placeOrder(lbPair, tokenIn, tokenOut, order.amount, order.orderType, order.binId);
 
@@ -353,6 +370,8 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
                 ++i;
             }
         }
+
+        if (msg.value > nativeAmount) _transferNativeToken(msg.sender, msg.value - nativeAmount);
     }
 
     /**
@@ -453,11 +472,12 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         IERC20 tokenY,
         uint16 binStep,
         PlaceOrderParamsSamePair[] calldata orders
-    ) external override nonReentrant returns (uint256[] memory orderPositionIds) {
+    ) external payable override nonReentrant returns (uint256[] memory orderPositionIds) {
         if (orders.length == 0) revert LimitOrderManager__InvalidBatchLength();
 
         orderPositionIds = new uint256[](orders.length);
 
+        uint256 nativeAmount;
         ILBPair lbPair = _getLBPair(tokenX, tokenY, binStep);
 
         for (uint256 i; i < orders.length;) {
@@ -465,12 +485,18 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
 
             (IERC20 tokenIn, IERC20 tokenOut) = order.orderType == OrderType.BID ? (tokenY, tokenX) : (tokenX, tokenY);
 
+            if (address(tokenIn) == address(0) && (nativeAmount += order.amount) > msg.value) {
+                revert LimitOrderManager__InvalidNativeAmount();
+            }
+
             orderPositionIds[i] = _placeOrder(lbPair, tokenIn, tokenOut, order.amount, order.orderType, order.binId);
 
             unchecked {
                 ++i;
             }
         }
+
+        if (msg.value > nativeAmount) _transferNativeToken(msg.sender, msg.value - nativeAmount);
     }
 
     /**
@@ -577,6 +603,9 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
      * @return lbPair The liquidity book pair.
      */
     function _getLBPair(IERC20 tokenX, IERC20 tokenY, uint16 binStep) private view returns (ILBPair lbPair) {
+        tokenX = address(tokenX) == address(0) ? IERC20(address(_wNative)) : tokenX;
+        tokenY = address(tokenY) == address(0) ? IERC20(address(_wNative)) : tokenY;
+
         lbPair = _factory.getLBPairInformation(tokenX, tokenY, binStep).LBPair;
 
         // Check if the liquidity book pair is valid, that is, if the lbPair address is not 0.
@@ -615,6 +644,49 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
     function _isOrderExecutable(ILBPair lbPair, OrderType orderType, uint24 binId) private view returns (bool) {
         uint24 activeId = lbPair.getActiveId();
         return ((orderType == OrderType.BID && binId > activeId) || (orderType == OrderType.ASK && binId < activeId));
+    }
+
+    /**
+     * @dev Transfer the amount of token to the recipient. If the token is the zero address, then transfer the amount
+     * of native token to the recipient.
+     * @param token The token to transfer.
+     * @param to The recipient of the transfer.
+     * @param amount The amount to transfer.
+     */
+    function _transfer(IERC20 token, address to, uint256 amount) private {
+        if (address(token) == address(0)) {
+            _wNative.withdraw(amount);
+            _transferNativeToken(to, amount);
+        } else {
+            token.safeTransfer(to, amount);
+        }
+    }
+
+    /**
+     * @dev Transfer native token to the recipient.
+     * @param to The recipient of the transfer.
+     * @param amount The amount to transfer.
+     */
+    function _transferNativeToken(address to, uint256 amount) private {
+        (bool success,) = to.call{value: amount}("");
+        if (!success) revert LimitOrderManager__TransferFailed();
+    }
+
+    /**
+     * @dev Transfer the amount of token from the sender to the recipient. If the token is the zero address, then
+     * first deposit the amount of native token from the sender to the contract, then transfer the amount of native
+     * token from the contract to the recipient.
+     * @param token The token to transfer.
+     * @param to The recipient of the transfer.
+     * @param amount The amount to transfer.
+     */
+    function _transferFromSender(IERC20 token, address to, uint256 amount) private {
+        if (address(token) == address(0)) {
+            _wNative.deposit{value: amount}();
+            IERC20(address(_wNative)).safeTransfer(to, amount);
+        } else {
+            token.safeTransferFrom(msg.sender, to, amount);
+        }
     }
 
     /**
@@ -758,7 +830,7 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         uint256 amount = orderLiquidity.mulDivRoundDown(position.amount, position.liquidity);
 
         // Transfer the amount of the order to the user.
-        token.safeTransfer(msg.sender, amount);
+        _transfer(token, msg.sender, amount);
 
         // Get the order key components (liquidity book pair, order type, bin id) from the order key to emit the event.
         (ILBPair lbPair, OrderType orderType, uint24 binId) = _getOrderKeyComponents(orderKey);
@@ -900,7 +972,7 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         liquidityConfigurations[0] = LiquidityConfigurations.encodeParams(distributionX, distributionY, binId);
 
         // Send the amount of the token to the liquidity book pair.
-        token.safeTransferFrom(msg.sender, address(lbPair), amount);
+        _transferFromSender(token, address(lbPair), amount);
 
         // Mint the liquidity to the liquidity book pair.
         (bytes32 packedAmountIn, bytes32 packedAmountExcess, uint256[] memory liquidities) =
@@ -933,6 +1005,8 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         uint256 liquidity,
         address to
     ) private returns (uint128 amountX, uint128 amountY) {
+        if (address(tokenX) == address(0) || address(tokenY) == address(0)) revert LimitOrderManager__ZeroAddress();
+
         // Get the ids and amounts of the liquidity to burn.
         uint256[] memory ids = new uint256[](1);
         uint256[] memory amounts = new uint256[](1);

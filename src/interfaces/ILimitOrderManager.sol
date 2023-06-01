@@ -15,10 +15,12 @@ interface ILimitOrderManager {
     error LimitOrderManager__ZeroAddress();
     error LimitOrderManager__ZeroAmount();
     error LimitOrderManager__ZeroPositionLiquidity();
+    error LimitOrderManager__TransferFailed();
     error LimitOrderManager__InvalidPair();
     error LimitOrderManager__InvalidOrder();
     error LimitOrderManager__InvalidBatchLength();
     error LimitOrderManager__InvalidTokenOrder();
+    error LimitOrderManager__InvalidNativeAmount();
     error LimitOrderManager__OrderAlreadyExecuted();
     error LimitOrderManager__OrderNotClaimable();
     error LimitOrderManager__OrderNotPlaced();
@@ -195,6 +197,7 @@ interface ILimitOrderManager {
 
     function placeOrder(IERC20 tokenX, IERC20 tokenY, uint16 binStep, OrderType orderType, uint24 binId, uint256 amount)
         external
+        payable
         returns (uint256 orderPositionId);
 
     function cancelOrder(IERC20 tokenX, IERC20 tokenY, uint16 binStep, OrderType orderType, uint24 binId)
@@ -209,7 +212,10 @@ interface ILimitOrderManager {
         external
         returns (uint256 positionId);
 
-    function batchPlaceOrders(PlaceOrderParams[] calldata orders) external returns (uint256[] memory positionIds);
+    function batchPlaceOrders(PlaceOrderParams[] calldata orders)
+        external
+        payable
+        returns (uint256[] memory positionIds);
 
     function batchCancelOrders(OrderParams[] calldata orders) external returns (uint256[] memory positionIds);
 
@@ -222,7 +228,7 @@ interface ILimitOrderManager {
         IERC20 tokenY,
         uint16 binStep,
         PlaceOrderParamsSamePair[] calldata orders
-    ) external returns (uint256[] memory positionIds);
+    ) external payable returns (uint256[] memory positionIds);
 
     function batchCancelOrdersSamePair(
         IERC20 tokenX,
