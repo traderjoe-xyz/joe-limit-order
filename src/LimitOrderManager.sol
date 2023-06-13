@@ -596,6 +596,13 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
     }
 
     /**
+     * @notice Allow the contract to receive native token, only if they come from the wrapped native token contract.
+     */
+    receive() external payable {
+        if (msg.sender != address(_wNative)) revert LimitOrderManager__OnlyWNative();
+    }
+
+    /**
      * @dev Get the liquidity book pair address from the factory.
      * @param tokenX The token X of the liquidity book pair.
      * @param tokenY The token Y of the liquidity book pair.

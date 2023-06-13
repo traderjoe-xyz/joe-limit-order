@@ -27,6 +27,7 @@ interface ILimitOrderManager {
     error LimitOrderManager__OrdersAlreadyExecuted();
     error LimitOrderManager__OrderNotExecutable();
     error LimitOrderManager__NoOrdersToExecute();
+    error LimitOrderManager__OnlyWNative();
 
     /**
      * @dev Order type,
