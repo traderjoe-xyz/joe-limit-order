@@ -1056,7 +1056,17 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         }
     }
 
-    // TODO
+    /**
+     * @dev Get the execution fee of a liquidity book pair.
+     * The fee is calculated to be the base fee minus the protocol share, as we're sure that if a bin was crossed,
+     * the position received at least `baseFeeAmount - protocolShareAmount` fees. The fees in excess will still be
+     * sent to the users.
+     * @param lbPair The liquidity book pair.
+     * @param amountX The amount of token X.
+     * @param amountY The amount of token Y.
+     * @return feeAmountX The fee amount of token X.
+     * @return feeAmountY The fee amount of token Y.
+     */
     function _getExecutionFee(ILBPair lbPair, uint256 amountX, uint256 amountY)
         private
         view
