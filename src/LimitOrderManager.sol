@@ -1115,11 +1115,11 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         uint256 baseFee = PairParameterHelper.getBaseFee(parameters, lbPair.getBinStep());
 
         // Calculate the fee amount of token X and token Y.
-        uint256 oneSubProtocolShare = Constants.BASIS_POINT_MAX - protocolShare;
-        uint256 precision = Constants.PRECISION * Constants.BASIS_POINT_MAX;
+        uint256 fee = baseFee * (Constants.BASIS_POINT_MAX - protocolShare);
+        uint256 onePlusFee = fee + Constants.PRECISION * Constants.BASIS_POINT_MAX;
 
-        feeAmountX = (amountX * baseFee * oneSubProtocolShare / precision).safe128();
-        feeAmountY = (amountY * baseFee * oneSubProtocolShare / precision).safe128();
+        feeAmountX = (amountX * fee / onePlusFee).safe128();
+        feeAmountY = (amountY * fee / onePlusFee).safe128();
     }
 
     /**

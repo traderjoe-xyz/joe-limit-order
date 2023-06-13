@@ -2,6 +2,7 @@
 
 pragma solidity ^0.8.0;
 
+import "joe-v2/libraries/PriceHelper.sol";
 import "./TestHelper.sol";
 
 contract TestLimitOrderManager is TestHelper {
@@ -2445,6 +2446,92 @@ contract TestLimitOrderManager is TestHelper {
 
         assertEq(link.balanceOf(alice), 1e18, "test_BatchPlaceOrdersSamePairWithFailedOrders::5");
         assertEq(alice.balance, 1e18, "test_BatchPlaceOrdersSamePairWithFailedOrders::6");
+    }
+
+    function test_FeesOnExecutionForBidOrder() public {
+        uint24 bidId = linkWavax.getActiveId() - 1;
+        uint256 bidPrice = PriceHelper.getPriceFromId(bidId, binStepLW);
+
+        uint256 amountIn = 1e18;
+
+        deal(address(wnative), address(this), amountIn);
+        limitOrderManager.placeOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, amountIn);
+
+        uint256 fee;
+        {
+            uint16 baseFactor = 10_000;
+            uint16 protocolShare = 2500;
+
+            vm.prank(lbFactory.owner());
+            lbFactory.setFeesParametersOnPair(link, wnative, binStepLW, baseFactor, 0, 0, 0, 0, protocolShare, 0);
+
+            fee = uint256(baseFactor) * binStepLW * (10_000 - protocolShare) * 1e6;
+        }
+
+        (uint256 amountX, uint256 amountY, uint256 feeX, uint256 feeY) = limitOrderManager.getCurrentAmounts(
+            link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, address(this)
+        );
+
+        assertEq(amountX, 0, "test_FeesOnExecutionForBidOrder::1");
+        assertEq(feeX, 0, "test_FeesOnExecutionForBidOrder::2");
+        assertApproxEqAbs(amountY, amountIn, 1, "test_FeesOnExecutionForBidOrder::3");
+        assertEq(feeY, amountIn * fee / (fee + 1e18), "test_FeesOnExecutionForBidOrder::4");
+
+        swapNbBins(linkWavax, true, 2);
+
+        uint256 minAmountReceived = amountIn * 2 ** 128 / bidPrice;
+
+        (amountX, amountY, feeX, feeY) = limitOrderManager.getCurrentAmounts(
+            link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, address(this)
+        );
+
+        assertEq(amountY, 0, "test_FeesOnExecutionForBidOrder::5");
+        assertEq(feeY, 0, "test_FeesOnExecutionForBidOrder::6");
+        assertGe(amountX, minAmountReceived, "test_FeesOnExecutionForBidOrder::7");
+        assertGe(feeX, minAmountReceived * fee / 1e18, "test_FeesOnExecutionForBidOrder::8");
+    }
+
+    function test_FeesOnExecutionForAskOrder() public {
+        uint24 askId = linkWavax.getActiveId() + 1;
+        uint256 bidPrice = PriceHelper.getPriceFromId(askId, binStepLW);
+
+        uint256 amountIn = 1e18;
+
+        deal(address(link), address(this), amountIn);
+        limitOrderManager.placeOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, askId, amountIn);
+
+        uint256 fee;
+        {
+            uint16 baseFactor = 10_000;
+            uint16 protocolShare = 2500;
+
+            vm.prank(lbFactory.owner());
+            lbFactory.setFeesParametersOnPair(link, wnative, binStepLW, baseFactor, 0, 0, 0, 0, protocolShare, 0);
+
+            fee = uint256(baseFactor) * binStepLW * (10_000 - protocolShare) * 1e6;
+        }
+
+        (uint256 amountX, uint256 amountY, uint256 feeX, uint256 feeY) = limitOrderManager.getCurrentAmounts(
+            link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, askId, address(this)
+        );
+
+        assertEq(amountY, 0, "test_FeesOnExecutionForAskOrder::1");
+        assertEq(feeY, 0, "test_FeesOnExecutionForAskOrder::2");
+        assertApproxEqAbs(amountX, amountIn, 1, "test_FeesOnExecutionForAskOrder::3");
+        assertEq(feeX, amountIn * fee / (fee + 1e18), "test_FeesOnExecutionForAskOrder::4");
+
+        swapNbBins(linkWavax, false, 2);
+
+        uint256 minAmountReceived = (amountIn * bidPrice) >> 128;
+
+        (amountX, amountY, feeX, feeY) = limitOrderManager.getCurrentAmounts(
+            link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, askId, address(this)
+        );
+
+        assertEq(amountX, 0, "test_FeesOnExecutionForAskOrder::5");
+        assertEq(feeX, 0, "test_FeesOnExecutionForAskOrder::6");
+        assertGe(amountY, minAmountReceived, "test_FeesOnExecutionForAskOrder::7");
+        assertGe(feeY, minAmountReceived * fee / 1e18, "test_FeesOnExecutionForAskOrder::8");
     }
 
     receive() external payable {}
