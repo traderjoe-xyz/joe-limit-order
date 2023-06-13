@@ -1048,7 +1048,7 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
             amountX -= feeAmountX;
             amountY -= feeAmountY;
 
-            // Transfer the fee amount of token X and token Y to the fee recipient.
+            // Transfer the fee amount of token X and token Y to the executor.
             if (feeAmountX > 0) _transfer(tokenX, msg.sender, feeAmountX);
             if (feeAmountY > 0) _transfer(tokenY, msg.sender, feeAmountY);
 
