@@ -254,6 +254,24 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
     }
 
     /**
+     * @notice Preview the execution fee sent to the executor if the order is executed.
+     * @dev This is the base fee minus the protocol fee of the liquidity book pair.
+     * @param tokenX The token X of the liquidity book pair.
+     * @param tokenY The token Y of the liquidity book pair.
+     * @param binStep The bin step of the liquidity book pair.
+     * @return fee The executor fee, in 1e18 precision.
+     */
+    function getExecutionFee(IERC20 tokenX, IERC20 tokenY, uint16 binStep)
+        external
+        view
+        override
+        returns (uint256 fee)
+    {
+        ILBPair lbPair = _getLBPair(tokenX, tokenY, binStep);
+        (fee,) = _getExecutionFee(lbPair, 1e18, 1e18);
+    }
+
+    /**
      * @notice Place an order.
      * @param tokenX The token X of the liquidity book pair.
      * @param tokenY The token Y of the liquidity book pair.
@@ -1109,17 +1127,14 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
     {
         // Get the static fee parameter of the liquidity book pair.
         (uint256 baseFactor,,,,, uint256 protocolShare,) = lbPair.getStaticFeeParameters();
-        bytes32 parameters = bytes32(baseFactor);
 
-        // Calculate the base fee percentage.
-        uint256 baseFee = PairParameterHelper.getBaseFee(parameters, lbPair.getBinStep());
+        // Calculate the base fee percentage for LPs (removing the protocol share).
+        // We take `1e12` as one because `binStep`, `baseFactor` and `protocolShare` are all in basis points.
+        uint256 baseFeeForLp = uint256(lbPair.getBinStep()) * baseFactor * (Constants.BASIS_POINT_MAX - protocolShare);
+        uint256 onePlusFee = baseFeeForLp + 1e12;
 
-        // Calculate the fee amount of token X and token Y.
-        uint256 fee = baseFee * (Constants.BASIS_POINT_MAX - protocolShare);
-        uint256 onePlusFee = fee + Constants.PRECISION * Constants.BASIS_POINT_MAX;
-
-        feeAmountX = (amountX * fee / onePlusFee).safe128();
-        feeAmountY = (amountY * fee / onePlusFee).safe128();
+        feeAmountX = (amountX * baseFeeForLp / onePlusFee).safe128();
+        feeAmountY = (amountY * baseFeeForLp / onePlusFee).safe128();
     }
 
     /**

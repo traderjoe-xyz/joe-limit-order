@@ -2489,6 +2489,12 @@ contract TestLimitOrderManager is TestHelper {
         assertEq(feeY, 0, "test_FeesOnExecutionForBidOrder::6");
         assertGe(amountX, minAmountReceived, "test_FeesOnExecutionForBidOrder::7");
         assertGe(feeX, minAmountReceived * fee / 1e18, "test_FeesOnExecutionForBidOrder::8");
+
+        assertEq(
+            fee * 1e18 / (fee + 1e18),
+            limitOrderManager.getExecutionFee(link, wnative, binStepLW),
+            "test_FeesOnExecutionForBidOrder::9"
+        );
     }
 
     function test_FeesOnExecutionForAskOrder() public {
@@ -2502,8 +2508,8 @@ contract TestLimitOrderManager is TestHelper {
 
         uint256 fee;
         {
-            uint16 baseFactor = 10_000;
-            uint16 protocolShare = 2500;
+            uint16 baseFactor = 5000;
+            uint16 protocolShare = 1000;
 
             vm.prank(lbFactory.owner());
             lbFactory.setFeesParametersOnPair(link, wnative, binStepLW, baseFactor, 0, 0, 0, 0, protocolShare, 0);
@@ -2532,6 +2538,12 @@ contract TestLimitOrderManager is TestHelper {
         assertEq(feeX, 0, "test_FeesOnExecutionForAskOrder::6");
         assertGe(amountY, minAmountReceived, "test_FeesOnExecutionForAskOrder::7");
         assertGe(feeY, minAmountReceived * fee / 1e18, "test_FeesOnExecutionForAskOrder::8");
+
+        assertEq(
+            fee * 1e18 / (fee + 1e18),
+            limitOrderManager.getExecutionFee(link, wnative, binStepLW),
+            "test_FeesOnExecutionForBidOrder::9"
+        );
     }
 
     receive() external payable {}

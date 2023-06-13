@@ -194,6 +194,8 @@ interface ILimitOrderManager {
         address user
     ) external view returns (uint256 amountX, uint256 amountY, uint256 feeX, uint256 feeY);
 
+    function getExecutionFee(IERC20 tokenX, IERC20 tokenY, uint16 binStep) external view returns (uint256 fee);
+
     function placeOrder(IERC20 tokenX, IERC20 tokenY, uint16 binStep, OrderType orderType, uint24 binId, uint256 amount)
         external
         payable
