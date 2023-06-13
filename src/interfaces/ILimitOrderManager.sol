@@ -159,6 +159,8 @@ interface ILimitOrderManager {
         uint256 amountY
     );
 
+    event ExecutionFeePaid(address indexed executor, IERC20 tokenX, IERC20 tokenY, uint256 amountX, uint256 amountY);
+
     function name() external pure returns (string memory);
 
     function getFactory() external view returns (ILBFactory);
@@ -194,7 +196,7 @@ interface ILimitOrderManager {
         OrderType orderType,
         uint24 binId,
         address user
-    ) external view returns (uint256 amountX, uint256 amountY);
+    ) external view returns (uint256 amountX, uint256 amountY, uint256 feeX, uint256 feeY);
 
     function placeOrder(IERC20 tokenX, IERC20 tokenY, uint16 binStep, OrderType orderType, uint24 binId, uint256 amount)
         external

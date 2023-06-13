@@ -8,6 +8,8 @@ import {ReentrancyGuard} from "openzeppelin/security/ReentrancyGuard.sol";
 import {ILBPair} from "joe-v2/interfaces/ILBPair.sol";
 import {ILBFactory} from "joe-v2/interfaces/ILBFactory.sol";
 import {LiquidityConfigurations} from "joe-v2/libraries/math/LiquidityConfigurations.sol";
+import {Constants} from "joe-v2/libraries/Constants.sol";
+import {PairParameterHelper} from "joe-v2/libraries/PairParameterHelper.sol";
 import {PackedUint128Math} from "joe-v2/libraries/math/PackedUint128Math.sol";
 import {Uint256x256Math} from "joe-v2/libraries/math/Uint256x256Math.sol";
 import {SafeCast} from "joe-v2/libraries/math/SafeCast.sol";
@@ -213,6 +215,10 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
      * @param user The user address.
      * @return amountX The amount of token X.
      * @return amountY The amount of token Y.
+     * @return executionFeeX The execution fee of token X, if the order is executed. If the order is cancelled or was
+     * already executed, it will be 0.
+     * @return executionFeeY The execution fee of token Y, if the order is executed. If the order is cancelled or was
+     * already executed, it will be 0.
      */
     function getCurrentAmounts(
         IERC20 tokenX,
@@ -221,7 +227,7 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         OrderType orderType,
         uint24 binId,
         address user
-    ) external view override returns (uint256 amountX, uint256 amountY) {
+    ) external view override returns (uint256 amountX, uint256 amountY, uint256 executionFeeX, uint256 executionFeeY) {
         ILBPair lbPair = _getLBPair(tokenX, tokenY, binStep);
         bytes32 orderKey = _getOrderKey(lbPair, orderType, binId);
 
@@ -233,16 +239,18 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         if (position.withdrawn) {
             uint256 amount = orderLiquidity.mulDivRoundDown(position.amount, position.liquidity);
 
-            return orderType == OrderType.BID ? (amount, uint256(0)) : (uint256(0), amount);
+            (amountX, amountY) = orderType == OrderType.BID ? (amount, uint256(0)) : (uint256(0), amount);
+        } else {
+            uint256 totalLiquidity = lbPair.totalSupply(binId);
+            if (totalLiquidity == 0) return (0, 0, 0, 0);
+
+            (uint256 binReserveX, uint256 binReserveY) = lbPair.getBin(binId);
+
+            amountX = orderLiquidity.mulDivRoundDown(binReserveX, totalLiquidity);
+            amountY = orderLiquidity.mulDivRoundDown(binReserveY, totalLiquidity);
+
+            (executionFeeX, executionFeeY) = _getExecutionFee(lbPair, amountX, amountY);
         }
-
-        uint256 totalLiquidity = lbPair.totalSupply(binId);
-        if (totalLiquidity == 0) return (0, 0);
-
-        (uint256 binReserveX, uint256 binReserveY) = lbPair.getBin(binId);
-
-        amountX = orderLiquidity.mulDivRoundDown(binReserveX, totalLiquidity);
-        amountY = orderLiquidity.mulDivRoundDown(binReserveY, totalLiquidity);
     }
 
     /**
@@ -1031,6 +1039,42 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         // Get the amount of token X and token Y withdrawn.
         amountX = (tokenX.balanceOf(to) - balanceX).safe128();
         amountY = (tokenY.balanceOf(to) - balanceY).safe128();
+
+        // If `to` is `address(this)`, it means this is an order that is being executed.
+        if (to == address(this)) {
+            (uint128 feeAmountX, uint128 feeAmountY) = _getExecutionFee(lbPair, amountX, amountY);
+
+            // Update the amount of token X and token Y to the amount minus the fee amount.
+            amountX -= feeAmountX;
+            amountY -= feeAmountY;
+
+            // Transfer the fee amount of token X and token Y to the fee recipient.
+            if (feeAmountX > 0) _transfer(tokenX, msg.sender, feeAmountX);
+            if (feeAmountY > 0) _transfer(tokenY, msg.sender, feeAmountY);
+
+            emit ExecutionFeePaid(msg.sender, tokenX, tokenY, feeAmountX, feeAmountY);
+        }
+    }
+
+    // TODO
+    function _getExecutionFee(ILBPair lbPair, uint256 amountX, uint256 amountY)
+        private
+        view
+        returns (uint128 feeAmountX, uint128 feeAmountY)
+    {
+        // Get the static fee parameter of the liquidity book pair.
+        (uint256 baseFactor,,,,, uint256 protocolShare,) = lbPair.getStaticFeeParameters();
+        bytes32 parameters = bytes32(baseFactor);
+
+        // Calculate the base fee percentage.
+        uint256 baseFee = PairParameterHelper.getBaseFee(parameters, lbPair.getBinStep());
+
+        // Calculate the fee amount of token X and token Y.
+        uint256 oneSubProtocolShare = Constants.BASIS_POINT_MAX - protocolShare;
+        uint256 precision = Constants.PRECISION * Constants.BASIS_POINT_MAX;
+
+        feeAmountX = (amountX * baseFee * oneSubProtocolShare / precision).safe128();
+        feeAmountY = (amountY * baseFee * oneSubProtocolShare / precision).safe128();
     }
 
     /**
