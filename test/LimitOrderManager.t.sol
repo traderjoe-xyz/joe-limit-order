@@ -2194,6 +2194,9 @@ contract TestLimitOrderManager is TestHelper {
         (amountsBidWU.amountX, amountsBidWU.amountY, amountsBidWU.feeX, amountsBidWU.feeY) = limitOrderManager
             .getCurrentAmounts(wnative, usdc, binStepWU, ILimitOrderManager.OrderType.BID, bidIdWU, bob);
 
+        vm.prank(lbFactory.owner());
+        limitOrderManager.setExecutorFeeShare(0.5e4);
+
         vm.startPrank(carol);
         limitOrderManager.executeOrders(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, askIdLW);
         limitOrderManager.executeOrders(wnative, usdc, binStepWU, ILimitOrderManager.OrderType.BID, bidIdWU);
@@ -2216,19 +2219,21 @@ contract TestLimitOrderManager is TestHelper {
 
         assertEq(amountsAskLW.amountX + amountsAskLW.feeX, 0, "test_OrderMultipleUsers::5");
         assertEq(amountsBidWU.amountY + amountsBidWU.feeY, 0, "test_OrderMultipleUsers::6");
-        assertEq(
+        assertApproxEqRel(
             bob.balance,
-            amountsAskLW.amountY + amountsBidWU.amountX - amountsBidWU.feeX - amountsAskLW.feeY,
+            amountsAskLW.amountY + amountsBidWU.amountX - (amountsBidWU.feeX / 2) - (amountsAskLW.feeY / 2),
+            1,
             "test_OrderMultipleUsers::7"
         );
 
-        assertEq(link.balanceOf(carol), amountsBidLW.feeX + amountsAskLW.feeX, "test_OrderMultipleUsers::8");
-        assertEq(
+        assertEq(link.balanceOf(carol), amountsBidLW.feeX, "test_OrderMultipleUsers::8");
+        assertApproxEqRel(
             wnative.balanceOf(carol),
-            amountsBidWU.feeX + amountsAskWU.feeX + amountsAskLW.feeY + amountsBidLW.feeY,
+            (amountsBidWU.feeX / 2) + amountsAskWU.feeX + (amountsAskLW.feeY / 2),
+            1,
             "test_OrderMultipleUsers::9"
         );
-        assertEq(usdc.balanceOf(carol), amountsBidWU.feeY + amountsAskWU.feeY, "test_OrderMultipleUsers::10");
+        assertEq(usdc.balanceOf(carol), amountsAskWU.feeY, "test_OrderMultipleUsers::10");
     }
 
     function test_BatchPlaceOrdersWithFailedOrders() public {
@@ -2495,6 +2500,15 @@ contract TestLimitOrderManager is TestHelper {
             limitOrderManager.getExecutionFee(link, wnative, binStepLW),
             "test_FeesOnExecutionForBidOrder::9"
         );
+
+        vm.prank(lbFactory.owner());
+        limitOrderManager.setExecutorFeeShare(0.25e4);
+
+        assertEq(
+            fee * 1e18 * 0.25e4 / (fee + 1e18) / 1e4,
+            limitOrderManager.getExecutionFee(link, wnative, binStepLW),
+            "test_FeesOnExecutionForBidOrder::10"
+        );
     }
 
     function test_FeesOnExecutionForAskOrder() public {
@@ -2542,7 +2556,16 @@ contract TestLimitOrderManager is TestHelper {
         assertEq(
             fee * 1e18 / (fee + 1e18),
             limitOrderManager.getExecutionFee(link, wnative, binStepLW),
-            "test_FeesOnExecutionForBidOrder::9"
+            "test_FeesOnExecutionForAskOrder::9"
+        );
+
+        vm.prank(lbFactory.owner());
+        limitOrderManager.setExecutorFeeShare(0.1e4);
+
+        assertEq(
+            fee * 1e18 * 0.1e4 / (fee + 1e18) / 1e4,
+            limitOrderManager.getExecutionFee(link, wnative, binStepLW),
+            "test_FeesOnExecutionForAskOrder::10"
         );
     }
 

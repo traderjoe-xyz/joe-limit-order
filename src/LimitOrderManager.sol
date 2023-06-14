@@ -78,6 +78,8 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
      */
     mapping(address => mapping(bytes32 => Order)) private _orders;
 
+    uint256 private _executorFeeShare;
+
     /**
      * @notice Constructor of the Limit Order Manager.
      * @param factory The address of the Liquidity Book factory.
@@ -88,6 +90,8 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
 
         _factory = factory;
         _wNative = wNative;
+
+        _setExecutorFeeShare(Constants.BASIS_POINT_MAX);
     }
 
     /**
@@ -104,6 +108,14 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
      */
     function getFactory() external view override returns (ILBFactory) {
         return _factory;
+    }
+
+    /**
+     * @notice Returns the executor fee share.
+     * @return The executor fee share.
+     */
+    function getExecutorFeeShare() external view override returns (uint256) {
+        return _executorFeeShare;
     }
 
     /**
@@ -648,6 +660,17 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
     }
 
     /**
+     * @notice Sets the executor fee share.
+     * @dev Only the factory owner can call this function. The remaining share is sent to the users.
+     * @param executorFeeShare The executor fee share, in basis points.
+     */
+    function setExecutorFeeShare(uint256 executorFeeShare) external override {
+        if (msg.sender != _factory.owner()) revert LimitOrderManager__OnlyFactoryOwner();
+
+        _setExecutorFeeShare(executorFeeShare);
+    }
+
+    /**
      * @notice Allow the contract to receive native token, only if they come from the wrapped native token contract.
      */
     receive() external payable {
@@ -1131,10 +1154,24 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         // Calculate the base fee percentage for LPs (removing the protocol share).
         // We take `1e12` as one because `binStep`, `baseFactor` and `protocolShare` are all in basis points.
         uint256 baseFeeForLp = uint256(lbPair.getBinStep()) * baseFactor * (Constants.BASIS_POINT_MAX - protocolShare);
-        uint256 onePlusFee = baseFeeForLp + 1e12;
+        uint256 executorFee = baseFeeForLp * _executorFeeShare;
 
-        feeAmountX = (amountX * baseFeeForLp / onePlusFee).safe128();
-        feeAmountY = (amountY * baseFeeForLp / onePlusFee).safe128();
+        uint256 denominator = (baseFeeForLp + 1e12) * Constants.BASIS_POINT_MAX;
+
+        feeAmountX = (amountX * executorFee / denominator).safe128();
+        feeAmountY = (amountY * executorFee / denominator).safe128();
+    }
+
+    /**
+     * @dev Sets the executor fee share.
+     * @param executorFeeShare The executor fee share.
+     */
+    function _setExecutorFeeShare(uint256 executorFeeShare) private {
+        if (executorFeeShare > Constants.BASIS_POINT_MAX) revert LimitOrderManager__InvalidExecutorFeeShare();
+
+        _executorFeeShare = executorFeeShare;
+
+        emit ExecutorFeeShareSet(executorFeeShare);
     }
 
     /**

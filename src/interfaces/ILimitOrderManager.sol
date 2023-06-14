@@ -19,11 +19,13 @@ interface ILimitOrderManager {
     error LimitOrderManager__InvalidBatchLength();
     error LimitOrderManager__InvalidTokenOrder();
     error LimitOrderManager__InvalidNativeAmount();
+    error LimitOrderManager__InvalidExecutorFeeShare();
     error LimitOrderManager__OrderAlreadyExecuted();
     error LimitOrderManager__OrderNotClaimable();
     error LimitOrderManager__OrderNotPlaced();
     error LimitOrderManager__OrderNotExecutable();
     error LimitOrderManager__OnlyWNative();
+    error LimitOrderManager__OnlyFactoryOwner();
 
     /**
      * @dev Order type,
@@ -157,9 +159,13 @@ interface ILimitOrderManager {
 
     event ExecutionFeePaid(address indexed executor, IERC20 tokenX, IERC20 tokenY, uint256 amountX, uint256 amountY);
 
+    event ExecutorFeeShareSet(uint256 executorFeeShare);
+
     function name() external pure returns (string memory);
 
     function getFactory() external view returns (ILBFactory);
+
+    function getExecutorFeeShare() external view returns (uint256);
 
     function getOrder(IERC20 tokenX, IERC20 tokenY, uint16 binStep, OrderType orderType, uint24 binId, address user)
         external
@@ -253,4 +259,6 @@ interface ILimitOrderManager {
         uint16 binStep,
         OrderParamsSamePair[] calldata orders
     ) external returns (bool[] memory orderExecuted, uint256[] memory positionIds);
+
+    function setExecutorFeeShare(uint256 executorFeeShare) external;
 }
