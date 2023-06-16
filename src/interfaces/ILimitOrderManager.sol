@@ -14,19 +14,18 @@ import {ILBFactory} from "joe-v2/interfaces/ILBFactory.sol";
 interface ILimitOrderManager {
     error LimitOrderManager__ZeroAddress();
     error LimitOrderManager__ZeroAmount();
-    error LimitOrderManager__ZeroPositionLiquidity();
     error LimitOrderManager__TransferFailed();
     error LimitOrderManager__InvalidPair();
-    error LimitOrderManager__InvalidOrder();
     error LimitOrderManager__InvalidBatchLength();
     error LimitOrderManager__InvalidTokenOrder();
     error LimitOrderManager__InvalidNativeAmount();
+    error LimitOrderManager__InvalidExecutorFeeShare();
     error LimitOrderManager__OrderAlreadyExecuted();
     error LimitOrderManager__OrderNotClaimable();
     error LimitOrderManager__OrderNotPlaced();
-    error LimitOrderManager__OrdersAlreadyExecuted();
     error LimitOrderManager__OrderNotExecutable();
-    error LimitOrderManager__NoOrdersToExecute();
+    error LimitOrderManager__OnlyWNative();
+    error LimitOrderManager__OnlyFactoryOwner();
 
     /**
      * @dev Order type,
@@ -158,9 +157,15 @@ interface ILimitOrderManager {
         uint256 amountY
     );
 
+    event ExecutionFeePaid(address indexed executor, IERC20 tokenX, IERC20 tokenY, uint256 amountX, uint256 amountY);
+
+    event ExecutorFeeShareSet(uint256 executorFeeShare);
+
     function name() external pure returns (string memory);
 
     function getFactory() external view returns (ILBFactory);
+
+    function getExecutorFeeShare() external view returns (uint256);
 
     function getOrder(IERC20 tokenX, IERC20 tokenY, uint16 binStep, OrderType orderType, uint24 binId, address user)
         external
@@ -193,12 +198,14 @@ interface ILimitOrderManager {
         OrderType orderType,
         uint24 binId,
         address user
-    ) external view returns (uint256 amountX, uint256 amountY);
+    ) external view returns (uint256 amountX, uint256 amountY, uint256 feeX, uint256 feeY);
+
+    function getExecutionFee(IERC20 tokenX, IERC20 tokenY, uint16 binStep) external view returns (uint256 fee);
 
     function placeOrder(IERC20 tokenX, IERC20 tokenY, uint16 binStep, OrderType orderType, uint24 binId, uint256 amount)
         external
         payable
-        returns (uint256 orderPositionId);
+        returns (bool orderPlaced, uint256 orderPositionId);
 
     function cancelOrder(IERC20 tokenX, IERC20 tokenY, uint16 binStep, OrderType orderType, uint24 binId)
         external
@@ -210,25 +217,27 @@ interface ILimitOrderManager {
 
     function executeOrders(IERC20 tokenX, IERC20 tokenY, uint16 binStep, OrderType orderType, uint24 binId)
         external
-        returns (uint256 positionId);
+        returns (bool orderExecuted, uint256 positionId);
 
     function batchPlaceOrders(PlaceOrderParams[] calldata orders)
         external
         payable
-        returns (uint256[] memory positionIds);
+        returns (bool[] memory orderPlaced, uint256[] memory positionIds);
 
     function batchCancelOrders(OrderParams[] calldata orders) external returns (uint256[] memory positionIds);
 
     function batchClaimOrders(OrderParams[] calldata orders) external returns (uint256[] memory positionIds);
 
-    function batchExecuteOrders(OrderParams[] calldata orders) external returns (uint256[] memory positionIds);
+    function batchExecuteOrders(OrderParams[] calldata orders)
+        external
+        returns (bool[] memory orderExecuted, uint256[] memory positionIds);
 
     function batchPlaceOrdersSamePair(
         IERC20 tokenX,
         IERC20 tokenY,
         uint16 binStep,
         PlaceOrderParamsSamePair[] calldata orders
-    ) external payable returns (uint256[] memory positionIds);
+    ) external payable returns (bool[] memory orderPlaced, uint256[] memory positionIds);
 
     function batchCancelOrdersSamePair(
         IERC20 tokenX,
@@ -249,5 +258,7 @@ interface ILimitOrderManager {
         IERC20 tokenY,
         uint16 binStep,
         OrderParamsSamePair[] calldata orders
-    ) external returns (uint256[] memory positionIds);
+    ) external returns (bool[] memory orderExecuted, uint256[] memory positionIds);
+
+    function setExecutorFeeShare(uint256 executorFeeShare) external;
 }
