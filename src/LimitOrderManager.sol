@@ -9,7 +9,6 @@ import {ILBPair} from "joe-v2/interfaces/ILBPair.sol";
 import {ILBFactory} from "joe-v2/interfaces/ILBFactory.sol";
 import {LiquidityConfigurations} from "joe-v2/libraries/math/LiquidityConfigurations.sol";
 import {Constants} from "joe-v2/libraries/Constants.sol";
-import {PairParameterHelper} from "joe-v2/libraries/PairParameterHelper.sol";
 import {PackedUint128Math} from "joe-v2/libraries/math/PackedUint128Math.sol";
 import {Uint256x256Math} from "joe-v2/libraries/math/Uint256x256Math.sol";
 import {SafeCast} from "joe-v2/libraries/math/SafeCast.sol";
@@ -108,6 +107,14 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
      */
     function getFactory() external view override returns (ILBFactory) {
         return _factory;
+    }
+
+    /**
+     * @notice Returns the address of the WNative token.
+     * @return The address of the WNative token.
+     */
+    function getWNative() external view override returns (IERC20) {
+        return _wNative;
     }
 
     /**
@@ -774,7 +781,7 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
     function _transferFromSender(IERC20 token, address to, uint256 amount) private {
         if (address(token) == address(0)) {
             _wNative.deposit{value: amount}();
-            IERC20(address(_wNative)).safeTransfer(to, amount);
+            IERC20(_wNative).safeTransfer(to, amount);
         } else {
             token.safeTransferFrom(msg.sender, to, amount);
         }
