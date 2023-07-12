@@ -9,7 +9,6 @@ import {ILBPair} from "joe-v2/interfaces/ILBPair.sol";
 import {ILBFactory} from "joe-v2/interfaces/ILBFactory.sol";
 import {LiquidityConfigurations} from "joe-v2/libraries/math/LiquidityConfigurations.sol";
 import {Constants} from "joe-v2/libraries/Constants.sol";
-import {PairParameterHelper} from "joe-v2/libraries/PairParameterHelper.sol";
 import {PackedUint128Math} from "joe-v2/libraries/math/PackedUint128Math.sol";
 import {Uint256x256Math} from "joe-v2/libraries/math/Uint256x256Math.sol";
 import {SafeCast} from "joe-v2/libraries/math/SafeCast.sol";
@@ -108,6 +107,14 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
      */
     function getFactory() external view override returns (ILBFactory) {
         return _factory;
+    }
+
+    /**
+     * @notice Returns the address of the WNative token.
+     * @return The address of the WNative token.
+     */
+    function getWNative() external view override returns (IERC20) {
+        return _wNative;
     }
 
     /**
@@ -219,6 +226,7 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
      * The amount returned will be the value that the user will receive if the order is cancelled.
      * If it's fully converted to the other token, then it's the amount that the user will receive after the order
      * is claimed.
+     * If the order was already claimed, it will return 0.
      * @param tokenX The token X of the liquidity book pair.
      * @param tokenY The token Y of the liquidity book pair.
      * @param binStep The bin step of the liquidity book pair.
@@ -303,7 +311,9 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
     {
         (IERC20 tokenIn, IERC20 tokenOut) = orderType == OrderType.BID ? (tokenY, tokenX) : (tokenX, tokenY);
 
-        if ((address(tokenIn) != address(0) || amount > msg.value) && msg.value != 0) {
+        if (
+            (address(tokenIn) != address(0) && msg.value != 0) || (address(tokenIn) == address(0) && amount > msg.value)
+        ) {
             revert LimitOrderManager__InvalidNativeAmount();
         }
 
@@ -322,17 +332,22 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
      * @param binStep The bin step of the liquidity book pair.
      * @param orderType The order type (bid or ask).
      * @param binId The bin id of the order, which is the price of the order.
+     * @param minAmountX The minimum amount of token X to receive.
+     * @param minAmountY The minimum amount of token Y to receive.
      * @return orderPositionId The position id of the order.
      */
-    function cancelOrder(IERC20 tokenX, IERC20 tokenY, uint16 binStep, OrderType orderType, uint24 binId)
-        external
-        override
-        nonReentrant
-        returns (uint256 orderPositionId)
-    {
+    function cancelOrder(
+        IERC20 tokenX,
+        IERC20 tokenY,
+        uint16 binStep,
+        OrderType orderType,
+        uint24 binId,
+        uint256 minAmountX,
+        uint256 minAmountY
+    ) external override nonReentrant returns (uint256 orderPositionId) {
         ILBPair lbPair = _getLBPair(tokenX, tokenY, binStep);
 
-        return _cancelOrder(lbPair, tokenX, tokenY, orderType, binId);
+        return _cancelOrder(lbPair, tokenX, tokenY, orderType, binId, minAmountX, minAmountY);
     }
 
     /**
@@ -429,7 +444,7 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
      * @param orders The orders to cancel.
      * @return orderPositionIds The position ids of the orders.
      */
-    function batchCancelOrders(OrderParams[] calldata orders)
+    function batchCancelOrders(CancelOrderParams[] calldata orders)
         external
         override
         nonReentrant
@@ -440,11 +455,13 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         orderPositionIds = new uint256[](orders.length);
 
         for (uint256 i; i < orders.length;) {
-            OrderParams calldata order = orders[i];
+            CancelOrderParams calldata order = orders[i];
 
             ILBPair lbPair = _getLBPair(order.tokenX, order.tokenY, order.binStep);
 
-            orderPositionIds[i] = _cancelOrder(lbPair, order.tokenX, order.tokenY, order.orderType, order.binId);
+            orderPositionIds[i] = _cancelOrder(
+                lbPair, order.tokenX, order.tokenY, order.orderType, order.binId, order.minAmountX, order.minAmountY
+            );
 
             unchecked {
                 ++i;
@@ -573,7 +590,7 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         IERC20 tokenX,
         IERC20 tokenY,
         uint16 binStep,
-        OrderParamsSamePair[] calldata orders
+        CancelOrderParamsSamePair[] calldata orders
     ) external override nonReentrant returns (uint256[] memory orderPositionIds) {
         if (orders.length == 0) revert LimitOrderManager__InvalidBatchLength();
 
@@ -582,9 +599,10 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         ILBPair lbPair = _getLBPair(tokenX, tokenY, binStep);
 
         for (uint256 i; i < orders.length;) {
-            OrderParamsSamePair calldata order = orders[i];
+            CancelOrderParamsSamePair calldata order = orders[i];
 
-            orderPositionIds[i] = _cancelOrder(lbPair, tokenX, tokenY, order.orderType, order.binId);
+            orderPositionIds[i] =
+                _cancelOrder(lbPair, tokenX, tokenY, order.orderType, order.binId, order.minAmountX, order.minAmountY);
 
             unchecked {
                 ++i;
@@ -765,7 +783,7 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
     function _transferFromSender(IERC20 token, address to, uint256 amount) private {
         if (address(token) == address(0)) {
             _wNative.deposit{value: amount}();
-            IERC20(address(_wNative)).safeTransfer(to, amount);
+            IERC20(_wNative).safeTransfer(to, amount);
         } else {
             token.safeTransferFrom(msg.sender, to, amount);
         }
@@ -918,6 +936,10 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         // Calculate the amount of the order.
         uint256 amount = orderLiquidity.mulDivRoundDown(position.amount, position.liquidity);
 
+        // Update the liquidity and the amount of the position from the amounts withdrawn.
+        position.amount -= uint128(amount);
+        position.liquidity -= orderLiquidity;
+
         // Transfer the amount of the order to the user.
         _transfer(token, msg.sender, amount);
 
@@ -939,12 +961,19 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
      * @param tokenY The token Y of the liquidity book pair.
      * @param orderType The order type (bid or ask).
      * @param binId The bin id of the order, which is the price of the order.
+     * @param minAmountX The minimum amount of token X to receive on withdrawal from the liquidity book pair.
+     * @param minAmountY The minimum amount of token Y to receive on withdrawal from the liquidity book pair.
      * @return orderPositionId The position id of the order.
      */
-    function _cancelOrder(ILBPair lbPair, IERC20 tokenX, IERC20 tokenY, OrderType orderType, uint24 binId)
-        private
-        returns (uint256 orderPositionId)
-    {
+    function _cancelOrder(
+        ILBPair lbPair,
+        IERC20 tokenX,
+        IERC20 tokenY,
+        OrderType orderType,
+        uint24 binId,
+        uint256 minAmountX,
+        uint256 minAmountY
+    ) private returns (uint256 orderPositionId) {
         // Get the order key.
         bytes32 orderKey = _getOrderKey(lbPair, orderType, binId);
 
@@ -976,6 +1005,9 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         // Withdraw the liquidity from the liquidity book pair.
         (uint256 amountX, uint256 amountY) =
             _withdrawFromLBPair(lbPair, tokenX, tokenY, binId, orderLiquidity, msg.sender);
+
+        // If the amounts withdrawn are less than the minimum amounts, revert.
+        if (amountX < minAmountX || amountY < minAmountY) revert LimitOrderManager__InsufficientWithdrawalAmounts();
 
         emit OrderCancelled(msg.sender, lbPair, binId, orderType, orderPositionId, orderLiquidity, amountX, amountY);
     }
@@ -1152,14 +1184,13 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         (uint256 baseFactor,,,,, uint256 protocolShare,) = lbPair.getStaticFeeParameters();
 
         // Calculate the base fee percentage for LPs (removing the protocol share).
-        // We take `1e12` as one because `binStep`, `baseFactor` and `protocolShare` are all in basis points.
-        uint256 baseFeeForLp = uint256(lbPair.getBinStep()) * baseFactor * (Constants.BASIS_POINT_MAX - protocolShare);
-        uint256 executorFee = baseFeeForLp * _executorFeeShare;
+        // We take `1e16` as one because `binStep`, `baseFactor`, `protocolShare` and `_executorFeeShare` are all
+        // in basis points. This is an approximation of the actual fee if the bin was crossed directly.
+        uint256 executorFee =
+            uint256(lbPair.getBinStep()) * baseFactor * (Constants.BASIS_POINT_MAX - protocolShare) * _executorFeeShare;
 
-        uint256 denominator = (baseFeeForLp + 1e12) * Constants.BASIS_POINT_MAX;
-
-        feeAmountX = (amountX * executorFee / denominator).safe128();
-        feeAmountY = (amountY * executorFee / denominator).safe128();
+        feeAmountX = (amountX * executorFee / 1e16).safe128();
+        feeAmountY = (amountY * executorFee / 1e16).safe128();
     }
 
     /**

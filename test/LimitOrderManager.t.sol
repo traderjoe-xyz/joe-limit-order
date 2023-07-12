@@ -287,7 +287,7 @@ contract TestLimitOrderManager is TestHelper {
             link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, address(this)
         );
 
-        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId);
+        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, 0, 0);
 
         assertEq(linkWavax.balanceOf(address(limitOrderManager), bidId), 0, "test_CancelOrderForBidOrder::1");
 
@@ -317,7 +317,7 @@ contract TestLimitOrderManager is TestHelper {
             link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, askId, address(this)
         );
 
-        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, askId);
+        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, askId, 0, 0);
 
         assertEq(linkWavax.balanceOf(address(limitOrderManager), askId), 0, "test_CancelOrderForAskOrder::1");
 
@@ -336,29 +336,29 @@ contract TestLimitOrderManager is TestHelper {
 
         // trying to cancel an order that doesn't exist
         vm.expectRevert(ILimitOrderManager.LimitOrderManager__OrderNotPlaced.selector);
-        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, activeId);
+        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, activeId, 0, 0);
 
         deal(address(wnative), address(this), 3e18);
         limitOrderManager.placeOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, activeId - 1, 1e18);
 
-        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, activeId - 1);
+        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, activeId - 1, 0, 0);
 
         // trying to cancel an order that was already cancelled
         vm.expectRevert(ILimitOrderManager.LimitOrderManager__OrderNotPlaced.selector);
-        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, activeId - 1);
+        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, activeId - 1, 0, 0);
 
         limitOrderManager.placeOrder(wnative, usdc, binStepWU, ILimitOrderManager.OrderType.ASK, activeId + 1, 1e18);
 
         vm.expectRevert(ILimitOrderManager.LimitOrderManager__ZeroAddress.selector);
         limitOrderManager.cancelOrder(
-            IERC20(address(0)), usdc, binStepWU, ILimitOrderManager.OrderType.ASK, activeId + 1
+            IERC20(address(0)), usdc, binStepWU, ILimitOrderManager.OrderType.ASK, activeId + 1, 0, 0
         );
 
         limitOrderManager.placeOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, activeId - 1, 1e18);
 
         vm.expectRevert(ILimitOrderManager.LimitOrderManager__ZeroAddress.selector);
         limitOrderManager.cancelOrder(
-            link, IERC20(address(0)), binStepLW, ILimitOrderManager.OrderType.BID, activeId - 1
+            link, IERC20(address(0)), binStepLW, ILimitOrderManager.OrderType.BID, activeId - 1, 0, 0
         );
 
         swapNbBins(linkWavax, true, 2);
@@ -368,7 +368,7 @@ contract TestLimitOrderManager is TestHelper {
 
         // trying to cancel an order that was already executed
         vm.expectRevert(ILimitOrderManager.LimitOrderManager__OrderAlreadyExecuted.selector);
-        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, activeId - 1);
+        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, activeId - 1, 0, 0);
     }
 
     function test_revert_CancelOrderForAskOrder() external {
@@ -376,16 +376,16 @@ contract TestLimitOrderManager is TestHelper {
 
         // trying to cancel an order that doesn't exist
         vm.expectRevert(ILimitOrderManager.LimitOrderManager__OrderNotPlaced.selector);
-        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, activeId);
+        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, activeId, 0, 0);
 
         deal(address(link), address(this), 2e18);
         limitOrderManager.placeOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, activeId + 1, 1e18);
 
-        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, activeId + 1);
+        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, activeId + 1, 0, 0);
 
         // trying to cancel an order that was already cancelled
         vm.expectRevert(ILimitOrderManager.LimitOrderManager__OrderNotPlaced.selector);
-        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, activeId + 1);
+        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, activeId + 1, 0, 0);
 
         limitOrderManager.placeOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, activeId + 1, 1e18);
 
@@ -396,7 +396,7 @@ contract TestLimitOrderManager is TestHelper {
 
         // trying to cancel an order that was already executed
         vm.expectRevert(ILimitOrderManager.LimitOrderManager__OrderAlreadyExecuted.selector);
-        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, activeId + 1);
+        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, activeId + 1, 0, 0);
     }
 
     function test_ExecuteOrderForBidOrder() external {
@@ -555,12 +555,12 @@ contract TestLimitOrderManager is TestHelper {
         deal(address(wnative), address(this), 1e18);
         limitOrderManager.placeOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, 1e18);
 
-        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId);
+        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, 0, 0);
 
         deal(address(link), address(this), 1e18);
         limitOrderManager.placeOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, askId, 1e18);
 
-        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, askId);
+        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, askId, 0, 0);
 
         swapNbBins(linkWavax, true, 2);
 
@@ -700,8 +700,6 @@ contract TestLimitOrderManager is TestHelper {
         limitOrderManager.placeOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, 1e18);
         vm.stopPrank();
 
-        uint256 liquidity = linkWavax.balanceOf(address(limitOrderManager), bidId);
-
         swapNbBins(linkWavax, true, 2);
 
         (uint256 amountX, uint256 amountY, uint256 feeX, uint256 feeY) = limitOrderManager.getCurrentAmounts(
@@ -736,8 +734,8 @@ contract TestLimitOrderManager is TestHelper {
         ILimitOrderManager.Position memory position =
             limitOrderManager.getPosition(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, 1);
 
-        assertEq(position.liquidity, liquidity, "test_ExecuteOnClaimForBidOrder::11");
-        assertEq(position.amount, amountX - feeX, "test_ExecuteOnClaimForBidOrder::12");
+        assertEq(position.liquidity, 0, "test_ExecuteOnClaimForBidOrder::11");
+        assertEq(position.amount, 0, "test_ExecuteOnClaimForBidOrder::12");
         assertEq(position.withdrawn, true, "test_ExecuteOnClaimForBidOrder::13");
 
         (bool success,) =
@@ -756,8 +754,6 @@ contract TestLimitOrderManager is TestHelper {
 
         limitOrderManager.placeOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, askId, 1e18);
         vm.stopPrank();
-
-        uint256 liquidity = linkWavax.balanceOf(address(limitOrderManager), askId);
 
         swapNbBins(linkWavax, false, 2);
 
@@ -793,8 +789,8 @@ contract TestLimitOrderManager is TestHelper {
         ILimitOrderManager.Position memory position =
             limitOrderManager.getPosition(link, wnative, binStepLW, ILimitOrderManager.OrderType.ASK, askId, 1);
 
-        assertEq(position.liquidity, liquidity, "test_ExecuteOnClaimForAskOrder::11");
-        assertEq(position.amount, amountY - feeY, "test_ExecuteOnClaimForAskOrder::12");
+        assertEq(position.liquidity, 0, "test_ExecuteOnClaimForAskOrder::11");
+        assertEq(position.amount, 0, "test_ExecuteOnClaimForAskOrder::12");
         assertEq(position.withdrawn, true, "test_ExecuteOnClaimForAskOrder::13");
 
         (bool success,) =
@@ -1054,24 +1050,30 @@ contract TestLimitOrderManager is TestHelper {
         assertEq(amounts3.feeX, 0, "test_BatchOrdersForBidOrders::11");
         assertGt(amounts3.feeY, 0, "test_BatchOrdersForBidOrders::12");
 
-        orderParams[0] = ILimitOrderManager.OrderParams({
+        ILimitOrderManager.CancelOrderParams[] memory cancelParams = new ILimitOrderManager.CancelOrderParams[](2);
+
+        cancelParams[0] = ILimitOrderManager.CancelOrderParams({
             tokenX: link,
             tokenY: wnative,
             binStep: binStepLW,
             orderType: ILimitOrderManager.OrderType.BID,
-            binId: bidId2
+            binId: bidId2,
+            minAmountX: 0,
+            minAmountY: 0
         });
 
-        orderParams[1] = ILimitOrderManager.OrderParams({
+        cancelParams[1] = ILimitOrderManager.CancelOrderParams({
             tokenX: link,
             tokenY: wnative,
             binStep: binStepLW,
             orderType: ILimitOrderManager.OrderType.BID,
-            binId: bidId3
+            binId: bidId3,
+            minAmountX: 0,
+            minAmountY: 0
         });
 
         vm.prank(alice);
-        limitOrderManager.batchCancelOrders(orderParams);
+        limitOrderManager.batchCancelOrders(cancelParams);
 
         assertEq(link.balanceOf(alice), amounts2.amountX + amounts3.amountX, "test_BatchOrdersForBidOrders::13");
         assertEq(wnative.balanceOf(alice), amounts2.amountY + amounts3.amountY, "test_BatchOrdersForBidOrders::14");
@@ -1225,24 +1227,30 @@ contract TestLimitOrderManager is TestHelper {
         assertGt(amounts3.feeX, 0, "test_BatchOrdersForAskOrders::11");
         assertEq(amounts3.feeY, 0, "test_BatchOrdersForAskOrders::12");
 
-        orderParams[0] = ILimitOrderManager.OrderParams({
+        ILimitOrderManager.CancelOrderParams[] memory cancelParams = new ILimitOrderManager.CancelOrderParams[](2);
+
+        cancelParams[0] = ILimitOrderManager.CancelOrderParams({
             tokenX: link,
             tokenY: wnative,
             binStep: binStepLW,
             orderType: ILimitOrderManager.OrderType.ASK,
-            binId: askId2
+            binId: askId2,
+            minAmountX: 0,
+            minAmountY: 0
         });
 
-        orderParams[1] = ILimitOrderManager.OrderParams({
+        cancelParams[1] = ILimitOrderManager.CancelOrderParams({
             tokenX: link,
             tokenY: wnative,
             binStep: binStepLW,
             orderType: ILimitOrderManager.OrderType.ASK,
-            binId: askId3
+            binId: askId3,
+            minAmountX: 0,
+            minAmountY: 0
         });
 
         vm.prank(alice);
-        limitOrderManager.batchCancelOrders(orderParams);
+        limitOrderManager.batchCancelOrders(cancelParams);
 
         assertEq(link.balanceOf(alice), amounts2.amountX + amounts3.amountX, "test_BatchOrdersForAskOrders::13");
         assertEq(wnative.balanceOf(alice), amounts2.amountY + amounts3.amountY, "test_BatchOrdersForAskOrders::14");
@@ -1289,8 +1297,10 @@ contract TestLimitOrderManager is TestHelper {
         vm.prank(address(1));
         limitOrderManager.batchExecuteOrders(orderParams);
 
+        ILimitOrderManager.CancelOrderParams[] memory cancelParams = new ILimitOrderManager.CancelOrderParams[](0);
+
         vm.expectRevert(ILimitOrderManager.LimitOrderManager__InvalidBatchLength.selector);
-        limitOrderManager.batchCancelOrders(orderParams);
+        limitOrderManager.batchCancelOrders(cancelParams);
 
         vm.expectRevert(ILimitOrderManager.LimitOrderManager__InvalidBatchLength.selector);
         limitOrderManager.batchClaimOrders(orderParams);
@@ -1394,14 +1404,25 @@ contract TestLimitOrderManager is TestHelper {
         assertEq(amounts3.feeX, 0, "test_BatchOrdersForBidOrders::10");
         assertGt(amounts3.feeY, 0, "test_BatchOrdersForBidOrders::11");
 
-        orderParams[0] =
-            ILimitOrderManager.OrderParamsSamePair({orderType: ILimitOrderManager.OrderType.BID, binId: bidId2});
+        ILimitOrderManager.CancelOrderParamsSamePair[] memory cancelParams =
+            new ILimitOrderManager.CancelOrderParamsSamePair[](2);
 
-        orderParams[1] =
-            ILimitOrderManager.OrderParamsSamePair({orderType: ILimitOrderManager.OrderType.BID, binId: bidId3});
+        cancelParams[0] = ILimitOrderManager.CancelOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId2,
+            minAmountX: 0,
+            minAmountY: 0
+        });
+
+        cancelParams[1] = ILimitOrderManager.CancelOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.BID,
+            binId: bidId3,
+            minAmountX: 0,
+            minAmountY: 0
+        });
 
         vm.prank(alice);
-        limitOrderManager.batchCancelOrdersSamePair(link, wnative, binStepLW, orderParams);
+        limitOrderManager.batchCancelOrdersSamePair(link, wnative, binStepLW, cancelParams);
 
         assertEq(link.balanceOf(alice), amounts2.amountX + amounts3.amountX, "test_BatchOrdersForBidOrders::12");
         assertEq(wnative.balanceOf(alice), amounts2.amountY + amounts3.amountY, "test_BatchOrdersForBidOrders::13");
@@ -1524,14 +1545,25 @@ contract TestLimitOrderManager is TestHelper {
         assertGt(amounts3.feeX, 0, "test_BatchOrdersForAskOrders::11");
         assertEq(amounts3.feeY, 0, "test_BatchOrdersForAskOrders::12");
 
-        orderParams[0] =
-            ILimitOrderManager.OrderParamsSamePair({orderType: ILimitOrderManager.OrderType.ASK, binId: askId2});
+        ILimitOrderManager.CancelOrderParamsSamePair[] memory cancelParams =
+            new ILimitOrderManager.CancelOrderParamsSamePair[](2);
 
-        orderParams[1] =
-            ILimitOrderManager.OrderParamsSamePair({orderType: ILimitOrderManager.OrderType.ASK, binId: askId3});
+        cancelParams[0] = ILimitOrderManager.CancelOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId2,
+            minAmountX: 0,
+            minAmountY: 0
+        });
+
+        cancelParams[1] = ILimitOrderManager.CancelOrderParamsSamePair({
+            orderType: ILimitOrderManager.OrderType.ASK,
+            binId: askId3,
+            minAmountX: 0,
+            minAmountY: 0
+        });
 
         vm.prank(alice);
-        limitOrderManager.batchCancelOrdersSamePair(link, wnative, binStepLW, orderParams);
+        limitOrderManager.batchCancelOrdersSamePair(link, wnative, binStepLW, cancelParams);
 
         assertEq(link.balanceOf(alice), amounts2.amountX + amounts3.amountX, "test_BatchOrdersForAskOrders::13");
         assertEq(wnative.balanceOf(alice), amounts2.amountY + amounts3.amountY, "test_BatchOrdersForAskOrders::14");
@@ -2480,7 +2512,7 @@ contract TestLimitOrderManager is TestHelper {
         assertEq(amountX, 0, "test_FeesOnExecutionForBidOrder::1");
         assertEq(feeX, 0, "test_FeesOnExecutionForBidOrder::2");
         assertApproxEqAbs(amountY, amountIn, 1, "test_FeesOnExecutionForBidOrder::3");
-        assertEq(feeY, amountIn * fee / (fee + 1e18), "test_FeesOnExecutionForBidOrder::4");
+        assertApproxEqAbs(feeY, amountIn * fee / 1e18, 1, "test_FeesOnExecutionForBidOrder::4");
 
         swapNbBins(linkWavax, true, 2);
 
@@ -2492,20 +2524,16 @@ contract TestLimitOrderManager is TestHelper {
 
         assertEq(amountY, 0, "test_FeesOnExecutionForBidOrder::5");
         assertEq(feeY, 0, "test_FeesOnExecutionForBidOrder::6");
-        assertGe(amountX, minAmountReceived, "test_FeesOnExecutionForBidOrder::7");
+        assertGe(amountX - feeX, minAmountReceived, "test_FeesOnExecutionForBidOrder::7");
         assertGe(feeX, minAmountReceived * fee / 1e18, "test_FeesOnExecutionForBidOrder::8");
 
-        assertEq(
-            fee * 1e18 / (fee + 1e18),
-            limitOrderManager.getExecutionFee(link, wnative, binStepLW),
-            "test_FeesOnExecutionForBidOrder::9"
-        );
+        assertEq(fee, limitOrderManager.getExecutionFee(link, wnative, binStepLW), "test_FeesOnExecutionForBidOrder::9");
 
         vm.prank(lbFactory.owner());
         limitOrderManager.setExecutorFeeShare(0.25e4);
 
         assertEq(
-            fee * 1e18 * 0.25e4 / (fee + 1e18) / 1e4,
+            fee * 0.25e4 / 1e4,
             limitOrderManager.getExecutionFee(link, wnative, binStepLW),
             "test_FeesOnExecutionForBidOrder::10"
         );
@@ -2538,7 +2566,7 @@ contract TestLimitOrderManager is TestHelper {
         assertEq(amountY, 0, "test_FeesOnExecutionForAskOrder::1");
         assertEq(feeY, 0, "test_FeesOnExecutionForAskOrder::2");
         assertApproxEqAbs(amountX, amountIn, 1, "test_FeesOnExecutionForAskOrder::3");
-        assertEq(feeX, amountIn * fee / (fee + 1e18), "test_FeesOnExecutionForAskOrder::4");
+        assertApproxEqAbs(feeX, amountIn * fee / 1e18, 1, "test_FeesOnExecutionForAskOrder::4");
 
         swapNbBins(linkWavax, false, 2);
 
@@ -2550,23 +2578,226 @@ contract TestLimitOrderManager is TestHelper {
 
         assertEq(amountX, 0, "test_FeesOnExecutionForAskOrder::5");
         assertEq(feeX, 0, "test_FeesOnExecutionForAskOrder::6");
-        assertGe(amountY, minAmountReceived, "test_FeesOnExecutionForAskOrder::7");
+        assertGe(amountY - feeY, minAmountReceived, "test_FeesOnExecutionForAskOrder::7");
         assertGe(feeY, minAmountReceived * fee / 1e18, "test_FeesOnExecutionForAskOrder::8");
 
-        assertEq(
-            fee * 1e18 / (fee + 1e18),
-            limitOrderManager.getExecutionFee(link, wnative, binStepLW),
-            "test_FeesOnExecutionForAskOrder::9"
-        );
+        assertEq(fee, limitOrderManager.getExecutionFee(link, wnative, binStepLW), "test_FeesOnExecutionForAskOrder::9");
 
         vm.prank(lbFactory.owner());
         limitOrderManager.setExecutorFeeShare(0.1e4);
 
         assertEq(
-            fee * 1e18 * 0.1e4 / (fee + 1e18) / 1e4,
+            fee * 0.1e4 / 1e4,
             limitOrderManager.getExecutionFee(link, wnative, binStepLW),
             "test_FeesOnExecutionForAskOrder::10"
         );
+    }
+
+    function test_ClaimOrderForBidOrderMultipleUsers() external {
+        uint24 activeId = linkWavax.getActiveId();
+
+        uint24 bidId = activeId - 1;
+
+        vm.startPrank(alice);
+        deal(address(wnative), alice, 1e18);
+        wnative.approve(address(limitOrderManager), 1e18);
+
+        limitOrderManager.placeOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, 1e18);
+        vm.stopPrank();
+        vm.startPrank(bob);
+        deal(address(wnative), bob, 1e18);
+        wnative.approve(address(limitOrderManager), 0.3e18);
+
+        limitOrderManager.placeOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, 0.3e18);
+        vm.stopPrank();
+
+        swapNbBins(linkWavax, true, 2);
+
+        vm.prank(address(1));
+        limitOrderManager.executeOrders(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId);
+
+        (uint256 amountX, uint256 amountY, uint256 feeX, uint256 feeY) = limitOrderManager.getCurrentAmounts(
+            link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, alice
+        );
+
+        vm.prank(alice);
+        limitOrderManager.claimOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId);
+        vm.prank(bob);
+        limitOrderManager.claimOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId);
+
+        assertEq(link.balanceOf(alice), amountX - feeX, "test_ClaimOrderForBidOrder::1");
+        assertEq(wnative.balanceOf(alice), amountY - feeY, "test_ClaimOrderForBidOrder::2");
+        assertEq(feeX, 0, "test_ClaimOrderForBidOrder::3");
+        assertEq(feeY, 0, "test_ClaimOrderForBidOrder::4");
+
+        (amountX, amountY, feeX, feeY) = limitOrderManager.getCurrentAmounts(
+            link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, alice
+        );
+
+        assertEq(amountX, 0, "test_ClaimOrderForBidOrder::5");
+        assertEq(amountY, 0, "test_ClaimOrderForBidOrder::6");
+        assertEq(feeX, 0, "test_ClaimOrderForBidOrder::7");
+        assertEq(feeY, 0, "test_ClaimOrderForBidOrder::8");
+
+        (amountX, amountY, feeX, feeY) =
+            limitOrderManager.getCurrentAmounts(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, bob);
+
+        assertEq(amountX, 0, "test_ClaimOrderForBidOrder::9");
+        assertEq(amountY, 0, "test_ClaimOrderForBidOrder::10");
+        assertEq(feeX, 0, "test_ClaimOrderForBidOrder::11");
+        assertEq(feeY, 0, "test_ClaimOrderForBidOrder::12");
+
+        ILimitOrderManager.Order memory order =
+            limitOrderManager.getOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, alice);
+
+        assertEq(order.positionId, 0, "test_ClaimOrderForBidOrder::13");
+        assertEq(order.liquidity, 0, "test_ClaimOrderForBidOrder::14");
+
+        order = limitOrderManager.getOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, bob);
+
+        assertEq(order.positionId, 0, "test_ClaimOrderForBidOrder::15");
+        assertEq(order.liquidity, 0, "test_ClaimOrderForBidOrder::16");
+    }
+
+    function test_CancelAndClaimOrderWithMultipleUsersOnSameBin() public {
+        uint24 activeId = linkWavax.getActiveId();
+
+        uint24 bidId = activeId - 1;
+
+        vm.startPrank(bob);
+        deal(address(wnative), address(bob), 1e18);
+        wnative.approve(address(limitOrderManager), 1e18);
+        limitOrderManager.placeOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, 1e18);
+        vm.stopPrank();
+
+        vm.startPrank(alice);
+        deal(address(wnative), address(alice), 1e18);
+        wnative.approve(address(limitOrderManager), 1e18);
+        limitOrderManager.placeOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, 1e18);
+        vm.stopPrank();
+
+        vm.prank(bob);
+        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, 0, 0);
+
+        assertApproxEqAbs(
+            wnative.balanceOf(address(bob)), 1e18, 1, "test_CancelAndClaimOrderWithMultipleUsersOnSameBin::1"
+        );
+
+        ILimitOrderManager.Order memory order = limitOrderManager.getOrder(
+            link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, address(alice)
+        );
+
+        assertEq(order.positionId, 1, "test_CancelAndClaimOrderWithMultipleUsersOnSameBin::2");
+
+        uint256 lbLiquidity = linkWavax.balanceOf(address(limitOrderManager), bidId);
+
+        assertGt(lbLiquidity, 0, "test_CancelAndClaimOrderWithMultipleUsersOnSameBin::3");
+        assertEq(order.liquidity, lbLiquidity, "test_CancelAndClaimOrderWithMultipleUsersOnSameBin::4");
+
+        swapNbBins(linkWavax, true, 2);
+
+        limitOrderManager.executeOrders(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId);
+
+        vm.prank(alice);
+        limitOrderManager.claimOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId);
+
+        assertEq(wnative.balanceOf(address(alice)), 0, "test_CancelAndClaimOrderWithMultipleUsersOnSameBin::5");
+        assertGt(link.balanceOf(address(alice)), 0, "test_CancelAndClaimOrderWithMultipleUsersOnSameBin::6");
+    }
+
+    function test_OrderClaimEthOrWeth() public {
+        uint24 activeId = wavaxUsdc.getActiveId();
+
+        uint24 bidId1 = activeId - 1;
+        uint24 bidId2 = activeId - 2;
+
+        vm.startPrank(alice);
+        deal(address(usdc), address(alice), 200e6);
+        usdc.approve(address(limitOrderManager), 200e6);
+
+        limitOrderManager.placeOrder(wnative, usdc, binStepWU, ILimitOrderManager.OrderType.BID, bidId1, 100e6);
+        limitOrderManager.placeOrder(wnative, usdc, binStepWU, ILimitOrderManager.OrderType.BID, bidId2, 100e6);
+        vm.stopPrank();
+
+        swapNbBins(wavaxUsdc, true, 3);
+
+        limitOrderManager.executeOrders(wnative, usdc, binStepWU, ILimitOrderManager.OrderType.BID, bidId1);
+        limitOrderManager.executeOrders(wnative, usdc, binStepWU, ILimitOrderManager.OrderType.BID, bidId2);
+
+        vm.prank(alice);
+        limitOrderManager.claimOrder(wnative, usdc, binStepWU, ILimitOrderManager.OrderType.BID, bidId1);
+
+        assertEq(usdc.balanceOf(address(alice)), 0, "test_OrderClaimEthOrWeth::1");
+        assertGt(wnative.balanceOf(address(alice)), 0, "test_OrderClaimEthOrWeth::2");
+
+        vm.prank(alice);
+        limitOrderManager.claimOrder(IERC20(address(0)), usdc, binStepWU, ILimitOrderManager.OrderType.BID, bidId2);
+
+        assertEq(usdc.balanceOf(address(alice)), 0, "test_OrderClaimEthOrWeth::3");
+        assertGt(alice.balance, 0, "test_OrderClaimEthOrWeth::4");
+    }
+
+    function test_revert_CancelOrderMinAmount() public {
+        uint24 activeId = linkWavax.getActiveId();
+
+        uint24 bidId = activeId - 1;
+
+        vm.startPrank(bob);
+        deal(address(wnative), address(bob), 1e18);
+        wnative.approve(address(limitOrderManager), 1e18);
+        limitOrderManager.placeOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, 1e18);
+        vm.stopPrank();
+
+        (uint256 amountX, uint256 amountY,,) =
+            limitOrderManager.getCurrentAmounts(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, bob);
+
+        assertEq(amountX, 0, "test_revert_CancelOrderMinAmount::1");
+        assertApproxEqAbs(amountY, 1e18, 1, "test_revert_CancelOrderMinAmount::2");
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InsufficientWithdrawalAmounts.selector);
+        vm.prank(bob);
+        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, 0, amountY + 1);
+
+        swapNbBins(linkWavax, true, 1);
+
+        (amountX, amountY,,) =
+            limitOrderManager.getCurrentAmounts(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, bob);
+
+        assertGt(amountX, 0, "test_revert_CancelOrderMinAmount::3");
+        assertGt(amountY, 0, "test_revert_CancelOrderMinAmount::4");
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InsufficientWithdrawalAmounts.selector);
+        vm.prank(bob);
+        limitOrderManager.cancelOrder(
+            link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, amountX, amountY + 1
+        );
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InsufficientWithdrawalAmounts.selector);
+        vm.prank(bob);
+        limitOrderManager.cancelOrder(
+            link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, amountX + 1, amountY
+        );
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InsufficientWithdrawalAmounts.selector);
+        vm.prank(bob);
+        limitOrderManager.cancelOrder(
+            link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, amountX + 1, amountY + 1
+        );
+
+        swapNbBins(linkWavax, true, 1);
+
+        (amountX, amountY,,) =
+            limitOrderManager.getCurrentAmounts(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, bob);
+
+        assertGt(amountX, 0, "test_revert_CancelOrderMinAmount::5");
+        assertEq(amountY, 0, "test_revert_CancelOrderMinAmount::6");
+
+        vm.expectRevert(ILimitOrderManager.LimitOrderManager__InsufficientWithdrawalAmounts.selector);
+        vm.prank(bob);
+        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, amountX + 1, 0);
+
+        vm.prank(bob);
+        limitOrderManager.cancelOrder(link, wnative, binStepLW, ILimitOrderManager.OrderType.BID, bidId, amountX, 0);
     }
 
     receive() external payable {}

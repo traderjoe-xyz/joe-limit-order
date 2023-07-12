@@ -15,6 +15,7 @@ interface ILimitOrderManager {
     error LimitOrderManager__ZeroAddress();
     error LimitOrderManager__ZeroAmount();
     error LimitOrderManager__TransferFailed();
+    error LimitOrderManager__InsufficientWithdrawalAmounts();
     error LimitOrderManager__InvalidPair();
     error LimitOrderManager__InvalidBatchLength();
     error LimitOrderManager__InvalidTokenOrder();
@@ -84,6 +85,19 @@ interface ILimitOrderManager {
     }
 
     /**
+     * @dev Cancel order params structure, used to cancel multiple orders in a single transaction.
+     */
+    struct CancelOrderParams {
+        IERC20 tokenX;
+        IERC20 tokenY;
+        uint16 binStep;
+        OrderType orderType;
+        uint24 binId;
+        uint256 minAmountX;
+        uint256 minAmountY;
+    }
+
+    /**
      * @dev Order params structure, used to cancel, claim and execute multiple orders in a single transaction.
      */
     struct OrderParams {
@@ -102,6 +116,17 @@ interface ILimitOrderManager {
         OrderType orderType;
         uint24 binId;
         uint256 amount;
+    }
+
+    /**
+     * @dev Cancel order params structure for the same LB pair, used to cancel multiple orders in a single transaction
+     * for the same LB pair
+     */
+    struct CancelOrderParamsSamePair {
+        OrderType orderType;
+        uint24 binId;
+        uint256 minAmountX;
+        uint256 minAmountY;
     }
 
     /**
@@ -165,6 +190,8 @@ interface ILimitOrderManager {
 
     function getFactory() external view returns (ILBFactory);
 
+    function getWNative() external view returns (IERC20);
+
     function getExecutorFeeShare() external view returns (uint256);
 
     function getOrder(IERC20 tokenX, IERC20 tokenY, uint16 binStep, OrderType orderType, uint24 binId, address user)
@@ -207,9 +234,15 @@ interface ILimitOrderManager {
         payable
         returns (bool orderPlaced, uint256 orderPositionId);
 
-    function cancelOrder(IERC20 tokenX, IERC20 tokenY, uint16 binStep, OrderType orderType, uint24 binId)
-        external
-        returns (uint256 orderPositionId);
+    function cancelOrder(
+        IERC20 tokenX,
+        IERC20 tokenY,
+        uint16 binStep,
+        OrderType orderType,
+        uint24 binId,
+        uint256 minAmountX,
+        uint256 minAmountY
+    ) external returns (uint256 orderPositionId);
 
     function claimOrder(IERC20 tokenX, IERC20 tokenY, uint16 binStep, OrderType orderType, uint24 binId)
         external
@@ -224,7 +257,7 @@ interface ILimitOrderManager {
         payable
         returns (bool[] memory orderPlaced, uint256[] memory positionIds);
 
-    function batchCancelOrders(OrderParams[] calldata orders) external returns (uint256[] memory positionIds);
+    function batchCancelOrders(CancelOrderParams[] calldata orders) external returns (uint256[] memory positionIds);
 
     function batchClaimOrders(OrderParams[] calldata orders) external returns (uint256[] memory positionIds);
 
@@ -243,7 +276,7 @@ interface ILimitOrderManager {
         IERC20 tokenX,
         IERC20 tokenY,
         uint16 binStep,
-        OrderParamsSamePair[] calldata orders
+        CancelOrderParamsSamePair[] calldata orders
     ) external returns (uint256[] memory positionIds);
 
     function batchClaimOrdersSamePair(
