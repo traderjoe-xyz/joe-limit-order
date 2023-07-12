@@ -219,6 +219,7 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
      * The amount returned will be the value that the user will receive if the order is cancelled.
      * If it's fully converted to the other token, then it's the amount that the user will receive after the order
      * is claimed.
+     * If the order was already claimed, it will return 0.
      * @param tokenX The token X of the liquidity book pair.
      * @param tokenY The token Y of the liquidity book pair.
      * @param binStep The bin step of the liquidity book pair.
@@ -917,6 +918,10 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
 
         // Calculate the amount of the order.
         uint256 amount = orderLiquidity.mulDivRoundDown(position.amount, position.liquidity);
+
+        // Update the liquidity and the amount of the position from the amounts withdrawn.
+        position.amount -= uint128(amount);
+        position.liquidity -= orderLiquidity;
 
         // Transfer the amount of the order to the user.
         _transfer(token, msg.sender, amount);
