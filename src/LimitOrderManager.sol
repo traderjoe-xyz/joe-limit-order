@@ -1184,14 +1184,13 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         (uint256 baseFactor,,,,, uint256 protocolShare,) = lbPair.getStaticFeeParameters();
 
         // Calculate the base fee percentage for LPs (removing the protocol share).
-        // We take `1e12` as one because `binStep`, `baseFactor` and `protocolShare` are all in basis points.
-        uint256 baseFeeForLp = uint256(lbPair.getBinStep()) * baseFactor * (Constants.BASIS_POINT_MAX - protocolShare);
-        uint256 executorFee = baseFeeForLp * _executorFeeShare;
+        // We take `1e16` as one because `binStep`, `baseFactor`, `protocolShare` and `_executorFeeShare` are all
+        // in basis points. This is an approximation of the actual fee if the bin was crossed directly.
+        uint256 executorFee =
+            uint256(lbPair.getBinStep()) * baseFactor * (Constants.BASIS_POINT_MAX - protocolShare) * _executorFeeShare;
 
-        uint256 denominator = (baseFeeForLp + 1e12) * Constants.BASIS_POINT_MAX;
-
-        feeAmountX = (amountX * executorFee / denominator).safe128();
-        feeAmountY = (amountY * executorFee / denominator).safe128();
+        feeAmountX = (amountX * executorFee / 1e16).safe128();
+        feeAmountY = (amountY * executorFee / 1e16).safe128();
     }
 
     /**
