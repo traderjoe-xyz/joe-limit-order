@@ -323,17 +323,22 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
      * @param binStep The bin step of the liquidity book pair.
      * @param orderType The order type (bid or ask).
      * @param binId The bin id of the order, which is the price of the order.
+     * @param minAmountX The minimum amount of token X to receive.
+     * @param minAmountY The minimum amount of token Y to receive.
      * @return orderPositionId The position id of the order.
      */
-    function cancelOrder(IERC20 tokenX, IERC20 tokenY, uint16 binStep, OrderType orderType, uint24 binId)
-        external
-        override
-        nonReentrant
-        returns (uint256 orderPositionId)
-    {
+    function cancelOrder(
+        IERC20 tokenX,
+        IERC20 tokenY,
+        uint16 binStep,
+        OrderType orderType,
+        uint24 binId,
+        uint256 minAmountX,
+        uint256 minAmountY
+    ) external override nonReentrant returns (uint256 orderPositionId) {
         ILBPair lbPair = _getLBPair(tokenX, tokenY, binStep);
 
-        return _cancelOrder(lbPair, tokenX, tokenY, orderType, binId);
+        return _cancelOrder(lbPair, tokenX, tokenY, orderType, binId, minAmountX, minAmountY);
     }
 
     /**
@@ -430,7 +435,7 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
      * @param orders The orders to cancel.
      * @return orderPositionIds The position ids of the orders.
      */
-    function batchCancelOrders(OrderParams[] calldata orders)
+    function batchCancelOrders(CancelOrderParams[] calldata orders)
         external
         override
         nonReentrant
@@ -441,11 +446,13 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         orderPositionIds = new uint256[](orders.length);
 
         for (uint256 i; i < orders.length;) {
-            OrderParams calldata order = orders[i];
+            CancelOrderParams calldata order = orders[i];
 
             ILBPair lbPair = _getLBPair(order.tokenX, order.tokenY, order.binStep);
 
-            orderPositionIds[i] = _cancelOrder(lbPair, order.tokenX, order.tokenY, order.orderType, order.binId);
+            orderPositionIds[i] = _cancelOrder(
+                lbPair, order.tokenX, order.tokenY, order.orderType, order.binId, order.minAmountX, order.minAmountY
+            );
 
             unchecked {
                 ++i;
@@ -574,7 +581,7 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         IERC20 tokenX,
         IERC20 tokenY,
         uint16 binStep,
-        OrderParamsSamePair[] calldata orders
+        CancelOrderParamsSamePair[] calldata orders
     ) external override nonReentrant returns (uint256[] memory orderPositionIds) {
         if (orders.length == 0) revert LimitOrderManager__InvalidBatchLength();
 
@@ -583,9 +590,10 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         ILBPair lbPair = _getLBPair(tokenX, tokenY, binStep);
 
         for (uint256 i; i < orders.length;) {
-            OrderParamsSamePair calldata order = orders[i];
+            CancelOrderParamsSamePair calldata order = orders[i];
 
-            orderPositionIds[i] = _cancelOrder(lbPair, tokenX, tokenY, order.orderType, order.binId);
+            orderPositionIds[i] =
+                _cancelOrder(lbPair, tokenX, tokenY, order.orderType, order.binId, order.minAmountX, order.minAmountY);
 
             unchecked {
                 ++i;
@@ -944,12 +952,19 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
      * @param tokenY The token Y of the liquidity book pair.
      * @param orderType The order type (bid or ask).
      * @param binId The bin id of the order, which is the price of the order.
+     * @param minAmountX The minimum amount of token X to receive on withdrawal from the liquidity book pair.
+     * @param minAmountY The minimum amount of token Y to receive on withdrawal from the liquidity book pair.
      * @return orderPositionId The position id of the order.
      */
-    function _cancelOrder(ILBPair lbPair, IERC20 tokenX, IERC20 tokenY, OrderType orderType, uint24 binId)
-        private
-        returns (uint256 orderPositionId)
-    {
+    function _cancelOrder(
+        ILBPair lbPair,
+        IERC20 tokenX,
+        IERC20 tokenY,
+        OrderType orderType,
+        uint24 binId,
+        uint256 minAmountX,
+        uint256 minAmountY
+    ) private returns (uint256 orderPositionId) {
         // Get the order key.
         bytes32 orderKey = _getOrderKey(lbPair, orderType, binId);
 
@@ -981,6 +996,9 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
         // Withdraw the liquidity from the liquidity book pair.
         (uint256 amountX, uint256 amountY) =
             _withdrawFromLBPair(lbPair, tokenX, tokenY, binId, orderLiquidity, msg.sender);
+
+        // If the amounts withdrawn are less than the minimum amounts, revert.
+        if (amountX < minAmountX || amountY < minAmountY) revert LimitOrderManager__InsufficientWithdrawalAmounts();
 
         emit OrderCancelled(msg.sender, lbPair, binId, orderType, orderPositionId, orderLiquidity, amountX, amountY);
     }
