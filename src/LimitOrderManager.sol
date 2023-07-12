@@ -311,7 +311,9 @@ contract LimitOrderManager is ReentrancyGuard, ILimitOrderManager {
     {
         (IERC20 tokenIn, IERC20 tokenOut) = orderType == OrderType.BID ? (tokenY, tokenX) : (tokenX, tokenY);
 
-        if ((address(tokenIn) != address(0) || amount > msg.value) && msg.value != 0) {
+        if (
+            (address(tokenIn) != address(0) && msg.value != 0) || (address(tokenIn) == address(0) && amount > msg.value)
+        ) {
             revert LimitOrderManager__InvalidNativeAmount();
         }
 
